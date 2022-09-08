@@ -37,7 +37,7 @@ class Hazumi1911Dataset(Dataset):
                torch.FloatTensor(self.videoVisual[vid]),\
                torch.FloatTensor(self.videoAudio[vid]),\
                torch.FloatTensor([1]*len(self.videoLabels[vid])),\
-               torch.FloatTensor(self.videoLabels[vid]),\
+               torch.FloatTensor([self.videoLabels[vid][4]]),\
                vid
 
     def __len__(self):

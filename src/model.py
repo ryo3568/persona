@@ -21,9 +21,9 @@ class LSTMModel(nn.Module):
         super(LSTMModel, self).__init__()
 
         self.dropout = nn.Dropout(dropout)
-        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=False, dropout=dropout, batch_first=True)
 
-        self.linear1 = nn.Linear(2*D_h, D_o)
+        self.linear1 = nn.Linear(D_h, D_o)
         self.linear2 = nn.Linear(D_o, n_classes)
 
     def forward(self, x):

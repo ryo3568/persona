@@ -23,7 +23,6 @@ def get_train_valid_sampler(trainset, valid=0.1):
     size = len(trainset) 
     idx = list(range(size)) 
     split = int(valid*size) 
-    print(split)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
 def get_Hazumi1911_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, pin_memory=False):
@@ -69,6 +68,8 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         text, visual, audio, mask, label =\
         [d.cuda() for d in data[:-1]] if cuda else data[:-1]
 
+        # data = audio
+        # data = torch.cat((visual, audio), dim=-1)
         data = torch.cat((text, visual, audio), dim=-1)
 
         if not train:
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     n_epochs = args.epochs 
     rate = args.rate
     
-    n_classes = 5 
+    n_classes = 1
 
     D_i = 3063
     D_h = 100 
