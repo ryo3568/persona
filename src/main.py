@@ -12,12 +12,6 @@ from model import LSTMModel
 from dataloader import Hazumi1911Dataset
 from utils.EarlyStopping import EarlyStopping
 
-def show_graph(test_loss):
-    print(test_loss)
-    x = np.arange(1, len(test_loss)+1)
-    plt.plot(x, test_loss)
-    plt.show()
-
 
 def get_train_valid_sampler(trainset, valid=0.1):
     size = len(trainset) 
@@ -74,7 +68,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
         if not train:
             seq_len = int(rate*data.shape[1])
-            data = data[:, :seq_len :]
+            data = data[:, :seq_len, :]
             
         
 
@@ -118,7 +112,7 @@ if __name__ == '__main__':
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
     parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
-    parser.add_argument('--showgraph', action='store_true', default=False, help='show test loss graph')
+    parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     args = parser.parse_args()
 
@@ -139,7 +133,7 @@ if __name__ == '__main__':
     n_epochs = args.epochs 
     rate = args.rate
     
-    n_classes = 1
+    n_classes = 5
 
     D_i = 3063
     D_h = 100 
@@ -152,9 +146,12 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     output = []
+    labels = []
 
     for testfile in testfiles:
         model = LSTMModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
+        if args.pretrained:
+            model.load_state_dict(torch.load('../data/Hazumi1911/model/model.pt'), strict=False)
 
         if cuda:
             model.cuda()
@@ -191,9 +188,6 @@ if __name__ == '__main__':
             if es(valid_loss):
                 break
 
-        if args.showgraph:
-            show_graph(test_losses)
-
         if args.tensorboard:
             writer.close() 
 
@@ -203,7 +197,9 @@ if __name__ == '__main__':
         print('best label {}'.format(best_label))
         print('best pred {}'.format(best_pred))
 
+        labels.append(best_label)
         output.append(best_loss)
 
     print(output)
+    print(np.array(output).mean())
 
