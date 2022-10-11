@@ -6,14 +6,15 @@ import pandas as pd
 import numpy as np 
 from utils.Standardizing import Standardizing
 
+# 性格特性を予測する
 class Hazumi1911Dataset(Dataset):
 
     def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features_persona.pkl'
+        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features.pkl'
 
 
-        self.videoIDs, self.videoLabels, self.videoText, self.videoAudio,\
+        self.videoIDs, self.videoSentiment, self.videoPersona, self.videoText, self.videoAudio,\
         self.videoVisual, self.videoSentence, self.Vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -41,8 +42,8 @@ class Hazumi1911Dataset(Dataset):
         return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
                torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
                torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-               torch.FloatTensor([1]*len(self.videoLabels[vid])),\
-               torch.FloatTensor(self.videoLabels[vid]),\
+               torch.FloatTensor([1]*len(self.videoPersona[vid])),\
+               torch.FloatTensor(self.videoPersona[vid]),\
                vid
         
 
@@ -53,15 +54,15 @@ class Hazumi1911Dataset(Dataset):
         dat = pd.DataFrame(data)
         return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
 
-
+# 心象を予測する
 class Hazumi1911SentimentDataset(Dataset):
 
     def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features_sentiment.pkl'
+        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features.pkl'
 
 
-        self.videoIDs, self.videoLabels, self.videoText, self.videoAudio,\
+        self.videoIDs, self.videoSentiment, self.videoPersona, self.videoText, self.videoAudio,\
         self.videoVisual, self.videoSentence, self.Vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -86,11 +87,12 @@ class Hazumi1911SentimentDataset(Dataset):
         
     def __getitem__(self, index):
         vid = self.keys[index] 
-        return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
+        return torch.FloatTensor(self.videoText[vid]),\
                torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
                torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-               torch.FloatTensor([1]*len(self.videoLabels[vid])),\
-               torch.LongTensor(self.videoLabels[vid]),\
+               torch.FloatTensor(self.videoPersona[vid]),\
+               torch.FloatTensor([1]*len(self.videoSentiment[vid])),\
+               torch.LongTensor(self.videoSentiment[vid]),\
                vid
 
     def __len__(self):
@@ -98,4 +100,4 @@ class Hazumi1911SentimentDataset(Dataset):
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
-        return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
+        return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]

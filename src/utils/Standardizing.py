@@ -4,7 +4,6 @@ class Standardizing:
 
     def __init__(self):
         self.scaler = StandardScaler() 
-    
 
     def dic2list(self, data, keys):
         res = []

@@ -12,8 +12,8 @@ class EarlyStopping:
         if self._loss < loss:
             self._step += 1 
             if self._step > self.patience:
-                if self.verbose:
-                    print('early stopping')
+                # if self.verbose:
+                    # print('early stopping')
                 return True
         else:
             self._step = 0

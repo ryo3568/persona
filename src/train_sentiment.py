@@ -1,7 +1,16 @@
+'''
+class-weightの実装
+loss_functionをCrossEntropyLoss -> MaskedNLLLossに変更
+実験を複数回回せるように変更(default:5回)
+tqdmで学習の進捗状況をわかりやすくした
+args.rateの削除
+'''
+
 import numpy as np
 import argparse, time, pickle
 import os
 import glob
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,15 +18,9 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, confusion_matrix, accuracy_score, classification_report
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMSentimentModel
+from model import LSTMSentimentModel2, MaskedNLLLoss
 from dataloader import Hazumi1911SentimentDataset
 from utils.EarlyStopping import EarlyStopping
-
-def show_graph(test_loss):
-    print(test_loss)
-    x = np.arange(1, len(test_loss)+1)
-    plt.plot(x, test_loss)
-    plt.show()
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -52,7 +55,7 @@ def get_Hazumi1911_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, p
 
     return train_loader, valid_loader, test_loader 
 
-def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False, rate=1.0):
+def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False):
     losses = []
     preds = [] 
     labels = [] 
@@ -66,24 +69,20 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, mask, label =\
+        text, visual, audio, persona, mask, label =\
         [d.cuda() for d in data[:-1]] if cuda else data[:-1]
+        persona = persona.repeat(1, text.shape[1], 1)
 
         # data = audio
         # data = torch.cat((visual, audio), dim=-1)
         data = torch.cat((text, visual, audio), dim=-1)
 
-        if not train:
-            seq_len = int(rate*data.shape[1])
-            data = data[:, :seq_len :]
-            
-        
-
         log_prob = model(data)
+
         lp_ = log_prob.view(-1, log_prob.size()[2])
         label_ = label.view(-1)
         
-        loss = loss_function(lp_, label_)
+        loss = loss_function(lp_, label_, mask)
 
         pred_ = torch.argmax(lp_, 1)
 
@@ -124,13 +123,16 @@ if __name__ == '__main__':
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
     parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
-    parser.add_argument('--showgraph', action='store_true', default=False, help='show test loss graph')
-    parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
+
+    # 追加
+    parser.add_argument('--iter', type=int, default=5, help='number of experiments')
+
     args = parser.parse_args()
 
     print(args)
 
     args.cuda = torch.cuda.is_available() and not args.no_cuda 
+
     if args.cuda:
         print('Running on GPU') 
     else:
@@ -143,7 +145,6 @@ if __name__ == '__main__':
     batch_size = args.batch_size 
     cuda = args.cuda 
     n_epochs = args.epochs 
-    rate = args.rate
     
     n_classes = 3
 
@@ -157,69 +158,92 @@ if __name__ == '__main__':
 
     testfiles = sorted(testfiles)
 
-    best_losses = None
-    output = []
+    negatives = [] # 低群の精度
+    accuracies = [] # 感情認識精度
+    best_losses = None 
 
-    for testfile in testfiles:
-        model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
+    for i in range(args.iter):
 
-        if cuda:
-            model.cuda()
-  
-        loss_function = nn.CrossEntropyLoss()
+        print(f'Iteration {i+1} / {args.iter}')
+    
+        accuracy = []
+        negative = [] 
 
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        for testfile in tqdm(testfiles, position=0, leave=True):
+            model = LSTMSentimentModel2(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
 
-        train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1) 
+            if cuda:
+                model.cuda()
+    
+            # loss_function = nn.CrossEntropyLoss()
+            loss_weights = torch.FloatTensor([5.5, 0.92, 0.59])
 
-        best_loss, best_label, best_pred, best_mask = None, None, None, None 
+            if args.class_weight:
+                loss_function = MaskedNLLLoss(loss_weights.cuda() if cuda else loss_weights)
+            else:
+                loss_function = MaskedNLLLoss()
 
-        test_losses = []
+            optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-        es = EarlyStopping(patience=10, verbose=1)
+            train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1) 
 
+            best_loss, best_label, best_pred, best_mask = None, None, None, None 
 
-        for epoch in range(n_epochs):
-            start_time = time.time() 
-            train_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-            valid_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-            test_loss, test_label, test_pred, test_mask = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+            test_losses = []
 
-            test_losses.append(valid_loss)
+            es = EarlyStopping(patience=10, verbose=1)
 
-            if best_loss == None or best_loss > test_loss:
-                best_loss, best_label, best_pred, best_mask = \
-                test_loss, test_label, test_pred, test_mask
+            for epoch in range(n_epochs):
+                # start_time = time.time() 
+                train_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                valid_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
+                test_loss, test_label, test_pred, test_mask = train_or_eval_model(model, loss_function, test_loader, epoch)
+
+                test_losses.append(valid_loss)
+
+                if best_loss == None or best_loss > test_loss:
+                    best_loss, best_label, best_pred, best_mask = \
+                    test_loss, test_label, test_pred, test_mask
+
+                if args.tensorboard:
+                    writer.add_scalar('test: loss', test_loss, epoch) 
+                    writer.add_scalar('train: loss', train_loss, epoch) 
+                
+                if es(valid_loss):
+                    break
 
             if args.tensorboard:
-                writer.add_scalar('test: loss', test_loss, epoch) 
-                writer.add_scalar('train: loss', train_loss, epoch) 
+                writer.close() 
+
+            if best_losses == None or best_losses > best_loss:
+                best_losses = best_loss 
+                best_model = model
+                best_model_iter = i
+
+            # print('Test performance..')
+            # print('Testfile name {}'.format(testfile))
+            # print('Loss {} F1-score {}'.format(best_loss, round(f1_score(best_label, best_pred, sample_weight=best_mask, average='weighted')*100, 2)))
+            # print(classification_report(best_label, best_pred, sample_weight=best_mask, digits=4))
+            # print(confusion_matrix(best_label, best_pred, sample_weight=best_mask))
+            # score = accuracy_score(best_label, best_pred, sample_weight=best_mask)
+            # print('accuracy(weight) : ', accuracy_score(best_label, best_pred, sample_weight=best_mask))
             
-            if es(valid_loss):
-                break
+            acc_score = accuracy_score(best_label, best_pred, sample_weight=best_mask)
+            accuracy.append(acc_score)
 
-        if args.showgraph:
-            show_graph(test_losses)
+            class_report = classification_report(best_label, best_pred, sample_weight=best_mask, digits=4, output_dict=True, zero_division=0)
+            if '0' in class_report:
+                negative.append(class_report['0']['precision'])
+            
+        torch.save(best_model.state_dict(), '../data/Hazumi1911/model/model.pt')
+        negatives.append(np.array(negative).mean())
+        accuracies.append(np.array(accuracy).mean())
 
-        if args.tensorboard:
-            writer.close() 
-
-        if best_losses == None or best_losses > best_loss:
-            best_losses = best_loss 
-            best_model = model
-
-
-        print('Test performance..')
-        print('Testfile name {}'.format(testfile))
-        print('Loss {} F1-score {}'.format(best_loss, round(f1_score(best_label, best_pred, sample_weight=best_mask, average='weighted')*100, 2)))
-        print(classification_report(best_label, best_pred, sample_weight=best_mask, digits=4))
-        print(confusion_matrix(best_label, best_pred, sample_weight=best_mask))
-        print('accuracy(weight) : ', accuracy_score(best_label, best_pred, sample_weight=best_mask))
-
-        output.append(accuracy_score(best_label, best_pred, sample_weight=best_mask))
-
-    torch.save(best_model.state_dict(), '../data/Hazumi1911/model/model.pt')
-    print(output)
-    print(np.array(output).mean())
+    print('Result')
+    print('低群の精度：', np.array(negatives).mean())
+    print(negatives)
+    print('感情認識精度：', np.array(accuracies).mean())
+    print(accuracies)
+    print(f"Best Model is Iter{best_model_iter}'s model")
 
 

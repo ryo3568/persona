@@ -1,7 +1,14 @@
+"""
+実験を複数回回せるように変更(default:5回)
+tqdmで学習の進捗状況をわかりやすくした
+予測ラベルをコマンドラインオプション(target)で指定できるようにした
+"""
+
 import numpy as np
 import argparse, time, pickle
 import os
 import glob
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -70,7 +77,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             seq_len = int(rate*data.shape[1])
             data = data[:, :seq_len, :]
             
-        
 
         pred = model(data)
         loss = loss_function(pred, label)
@@ -112,8 +118,13 @@ if __name__ == '__main__':
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
     parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
+
+    # 追加
     parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
+    parser.add_argument('--iter', type=int, default=5, help='number of experiments')
+    parser.add_argument('--target', type=int, default=0, help='0:all, 1:extraversion, 2:agreauleness, 3:conscientiousness, 4:neuroticism, 5:openness')
+
     args = parser.parse_args()
 
     print(args)
@@ -132,6 +143,7 @@ if __name__ == '__main__':
     cuda = args.cuda 
     n_epochs = args.epochs 
     rate = args.rate
+    target = args.target
     
     n_classes = 5
 
@@ -145,61 +157,70 @@ if __name__ == '__main__':
 
     testfiles = sorted(testfiles)
 
-    output = []
-    labels = []
+    losses = []
 
-    for testfile in testfiles:
-        model = LSTMModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
-        if args.pretrained:
-            model.load_state_dict(torch.load('../data/Hazumi1911/model/model.pt'), strict=False)
+    for i in range(args.iter):
 
-        if cuda:
-            model.cuda()
-        
-        loss_function = nn.MSELoss()
+        print(f'Iteration {i+1} / {args.iter}')
 
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        loss = []
 
-        train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1) 
+        for testfile in tqdm(testfiles, position=0, leave=True):
+            model = LSTMModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
 
-        best_loss, best_label, best_pred, best_mask = None, None, None, None 
+            if args.pretrained:
+                model.load_state_dict(torch.load('../data/Hazumi1911/model/model.pt'), strict=False)
+            
 
-        test_losses = []
+            if cuda:
+                model.cuda()
+            
+            loss_function = nn.MSELoss()
 
-        es = EarlyStopping(patience=10, verbose=1)
+            optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+
+            train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1) 
+
+            best_loss, best_label, best_pred, best_mask = None, None, None, None 
+
+            test_losses = []
+
+            es = EarlyStopping(patience=10, verbose=1)
+
+            for epoch in range(n_epochs):
+                # start_time = time.time() 
+                train_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                valid_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
+                test_loss, test_label, test_pred, test_mask = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+
+                test_losses.append(valid_loss)
 
 
-        for epoch in range(n_epochs):
-            start_time = time.time() 
-            train_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-            valid_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-            test_loss, test_label, test_pred, test_mask = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+                if best_loss == None or best_loss > test_loss:
+                    best_loss, best_label, best_pred, best_mask = \
+                    test_loss, test_label, test_pred, test_mask
 
-            test_losses.append(valid_loss)
-
-            if best_loss == None or best_loss > test_loss:
-                best_loss, best_label, best_pred, best_mask = \
-                test_loss, test_label, test_pred, test_mask
+                if args.tensorboard:
+                    writer.add_scalar('test: loss', test_loss, epoch) 
+                    writer.add_scalar('train: loss', train_loss, epoch) 
+                
+                if es(valid_loss):
+                    break
 
             if args.tensorboard:
-                writer.add_scalar('test: loss', test_loss, epoch) 
-                writer.add_scalar('train: loss', train_loss, epoch) 
-            
-            if es(valid_loss):
-                break
+                writer.close() 
 
-        if args.tensorboard:
-            writer.close() 
+            # print('Test performance..')
+            # print('Loss {}'.format(best_loss))
+            # print('testfile {}'.format(testfile))
+            # print('best label {}'.format(best_label))
+            # print('best pred {}'.format(best_pred))
 
-        print('Test performance..')
-        print('Loss {}'.format(best_loss))
-        print('testfile {}'.format(testfile))
-        print('best label {}'.format(best_label))
-        print('best pred {}'.format(best_pred))
+            loss.append(best_loss)
 
-        labels.append(best_label)
-        output.append(best_loss)
+        losses.append(np.array(loss).mean())
 
-    print(output)
-    print(np.array(output).mean())
+    print('Result')
+    print('損失：', np.array(losses).mean())
+    print(losses)
 
