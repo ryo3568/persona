@@ -1,4 +1,5 @@
 """
+feat:
 実験を複数回回せるように変更(default:5回)
 tqdmで学習の進捗状況をわかりやすくした
 予測ラベルをコマンドラインオプション(target)で指定できるようにした
@@ -26,9 +27,9 @@ def get_train_valid_sampler(trainset, valid=0.1):
     split = int(valid*size) 
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi1911_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, pin_memory=False):
-    trainset = Hazumi1911Dataset(test_file)
-    testset = Hazumi1911Dataset(test_file, train=False, scaler=trainset.scaler) 
+def get_Hazumi1911_loaders(test_file, batch_size=32, valid=0.1, target=5, num_workers=0, pin_memory=False):
+    trainset = Hazumi1911Dataset(test_file, target=target)
+    testset = Hazumi1911Dataset(test_file, target=target, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     parser.add_argument('--iter', type=int, default=5, help='number of experiments')
-    parser.add_argument('--target', type=int, default=0, help='0:all, 1:extraversion, 2:agreauleness, 3:conscientiousness, 4:neuroticism, 5:openness')
+    parser.add_argument('--target', type=int, default=5, help='0:extraversion, 1:agreauleness, 2:conscientiousness, 3:neuroticism, 4:openness, 5:all')
 
     args = parser.parse_args()
 
@@ -145,7 +146,10 @@ if __name__ == '__main__':
     rate = args.rate
     target = args.target
     
-    n_classes = 5
+    if target == 5:
+        n_classes = 5
+    else:
+        n_classes = 1
 
     D_i = 3063
     D_h = 100 
@@ -176,10 +180,11 @@ if __name__ == '__main__':
                 model.cuda()
             
             loss_function = nn.MSELoss()
+            # loss_function = nn.MaskedMSELoss()
 
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-            train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1) 
+            train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1, target=target) 
 
             best_loss, best_label, best_pred, best_mask = None, None, None, None 
 

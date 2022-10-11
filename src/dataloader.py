@@ -9,7 +9,7 @@ from utils.Standardizing import Standardizing
 # 性格特性を予測する
 class Hazumi1911Dataset(Dataset):
 
-    def __init__(self, test_file, train=True, scaler=None):
+    def __init__(self, test_file, target=5, train=True, scaler=None):
     
         path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features.pkl'
 
@@ -18,6 +18,7 @@ class Hazumi1911Dataset(Dataset):
         self.videoVisual, self.videoSentence, self.Vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
+        self.target = target
 
         if train:
             for x in self.Vid:
@@ -39,12 +40,21 @@ class Hazumi1911Dataset(Dataset):
         
     def __getitem__(self, index):
         vid = self.keys[index] 
+
+        if self.target == 5:
+            return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
+                torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
+                torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
+                torch.FloatTensor([1]*len(self.videoPersona[vid])),\
+                torch.FloatTensor(self.videoPersona[vid]),\
+                vid
+
         return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
-               torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
-               torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-               torch.FloatTensor([1]*len(self.videoPersona[vid])),\
-               torch.FloatTensor(self.videoPersona[vid]),\
-               vid
+            torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
+            torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
+            torch.FloatTensor([1]*len(self.videoPersona[vid])),\
+            torch.FloatTensor([self.videoPersona[vid][self.target]]),\
+            vid
         
 
     def __len__(self):

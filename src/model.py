@@ -36,6 +36,21 @@ class MaskedNLLLoss(nn.Module):
                             /torch.sum(self.weight[target]*mask_.squeeze())
         return loss
 
+class MaskedMSELoss(nn.Module):
+
+    def __init__(self):
+        super(MaskedMSELoss, self).__init__()
+        self.loss = nn.MSELoss(reduction='sum')
+
+    def forward(self, pred, target, mask):
+        """
+        pred -> batch*seq_len
+        target -> batch*seq_len
+        mask -> batch*seq_len
+        """
+        loss = self.loss(pred*mask, target)/torch.sum(mask)
+        return loss
+
 
 class LSTMModel(nn.Module):
 

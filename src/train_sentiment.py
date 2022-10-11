@@ -176,7 +176,7 @@ if __name__ == '__main__':
                 model.cuda()
     
             # loss_function = nn.CrossEntropyLoss()
-            loss_weights = torch.FloatTensor([5.5, 0.92, 0.59])
+            loss_weights = torch.FloatTensor([13.70, 2.77, 1.77])
 
             if args.class_weight:
                 loss_function = MaskedNLLLoss(loss_weights.cuda() if cuda else loss_weights)
@@ -218,7 +218,7 @@ if __name__ == '__main__':
             if best_losses == None or best_losses > best_loss:
                 best_losses = best_loss 
                 best_model = model
-                best_model_iter = i
+                best_model_iter = i + 1
 
             # print('Test performance..')
             # print('Testfile name {}'.format(testfile))
