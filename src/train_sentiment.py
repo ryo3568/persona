@@ -231,16 +231,20 @@ if __name__ == '__main__':
             acc_score = accuracy_score(best_label, best_pred, sample_weight=best_mask)
             accuracy.append(acc_score)
 
-            class_report = classification_report(best_label, best_pred, sample_weight=best_mask, digits=4, output_dict=True, zero_division=0)
-            if '0' in class_report:
-                negative.append(class_report['0']['precision'])
+            cm = confusion_matrix(best_label, best_pred, sample_weight=best_mask)
+            if cm.ndim == 3:
+                negative += cm[0][0] # 低群の予測に成功したデータ数
+
+            # class_report = classification_report(best_label, best_pred, sample_weight=best_mask, digits=4, output_dict=True, zero_division=0)
+            # if '0' in class_report:
+            #     negative.append(class_report['0']['precision'])
             
         torch.save(best_model.state_dict(), '../data/Hazumi1911/model/model.pt')
-        negatives.append(np.array(negative).mean())
+        negatives.append(negative)
         accuracies.append(np.array(accuracy).mean())
 
     print('Result')
-    print('低群の精度：', np.array(negatives).mean())
+    print('低群の精度：', np.array(negatives).mean() / 178)
     print(negatives)
     print('感情認識精度：', np.array(accuracies).mean())
     print(accuracies)
