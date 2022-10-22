@@ -11,10 +11,10 @@ class Hazumi1911Dataset(Dataset):
 
     def __init__(self, test_file, target=5, train=True, scaler=None):
     
-        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
 
-        self.videoIDs, self.videoSentiment, self.videoPersona, self.videoText, self.videoAudio,\
+        self.videoLabel, self.videoSentiment, self.videoPersona, self.videoThirdPersona, self.videoText, self.videoAudio,\
         self.videoVisual, self.videoSentence, self.Vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -45,15 +45,15 @@ class Hazumi1911Dataset(Dataset):
             return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
                 torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
                 torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-                torch.FloatTensor([1]*len(self.videoPersona[vid])),\
-                torch.FloatTensor(self.videoPersona[vid]),\
+                torch.FloatTensor([1]*len(self.videoThirdPersona[vid])),\
+                torch.FloatTensor(self.videoThirdPersona[vid]),\
                 vid
 
         return torch.FloatTensor(self.scaler_text.transform(self.videoText[vid])),\
             torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-            torch.FloatTensor([1]*len(self.videoPersona[vid])),\
-            torch.FloatTensor([self.videoPersona[vid][self.target]]),\
+            torch.FloatTensor([1]*len(self.videoThirdPersona[vid])),\
+            torch.FloatTensor([self.videoThirdPersona[vid][self.target]]),\
             vid
         
 
@@ -69,10 +69,10 @@ class Hazumi1911SentimentDataset(Dataset):
 
     def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi1911/Hazumi1911_features/Hazumi1911_features.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
 
-        self.videoIDs, self.videoSentiment, self.videoPersona, self.videoText, self.videoAudio,\
+        self.videoLabel, self.videoSentiment, self.videoPersona, self.videoThirdPersona, self.videoText, self.videoAudio,\
         self.videoVisual, self.videoSentence, self.Vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -100,8 +100,8 @@ class Hazumi1911SentimentDataset(Dataset):
         return torch.FloatTensor(self.videoText[vid]),\
                torch.FloatTensor(self.scaler_visual.transform(self.videoVisual[vid])),\
                torch.FloatTensor(self.scaler_audio.transform(self.videoAudio[vid])),\
-               torch.FloatTensor(self.videoPersona[vid]),\
                torch.FloatTensor([1]*len(self.videoSentiment[vid])),\
+               torch.FloatTensor(self.videoThirdPersona[vid]),\
                torch.LongTensor(self.videoSentiment[vid]),\
                vid
 

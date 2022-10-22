@@ -1,10 +1,3 @@
-"""
-feat:
-実験を複数回回せるように変更(default:5回)
-tqdmで学習の進捗状況をわかりやすくした
-予測ラベルをコマンドラインオプション(target)で指定できるようにした
-"""
-
 import numpy as np
 import argparse, time, pickle
 import os
