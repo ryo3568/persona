@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMModel
-from dataloader import Hazumi1911Dataset
+
+from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
 
@@ -20,9 +21,9 @@ def get_train_valid_sampler(trainset, valid=0.1):
     split = int(valid*size) 
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi1911_loaders(test_file, batch_size=32, valid=0.1, target=5, num_workers=0, pin_memory=False):
-    trainset = Hazumi1911Dataset(test_file, target=target)
-    testset = Hazumi1911Dataset(test_file, target=target, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, target=5, num_workers=0, pin_memory=False):
+    trainset = HazumiDataset(test_file, target=target)
+    testset = HazumiDataset(test_file, target=target, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -166,7 +167,7 @@ if __name__ == '__main__':
             model = LSTMModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
 
             if args.pretrained:
-                model.load_state_dict(torch.load('../data/Hazumi1911/model/model.pt'), strict=False)
+                model.load_state_dict(torch.load('../data/model/model.pt'), strict=False)
             
 
             if cuda:
@@ -177,7 +178,7 @@ if __name__ == '__main__':
 
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-            train_loader, valid_loader, test_loader = get_Hazumi1911_loaders(testfile, batch_size=batch_size, valid=0.1, target=target) 
+            train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, target=target) 
 
             best_loss, best_label, best_pred, best_mask = None, None, None, None 
 
