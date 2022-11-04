@@ -71,28 +71,60 @@ class LSTMModel(nn.Module):
         y = self.linear2(h)
         return y
 
+class LSTMMultiTaskModel(nn.Module):
+    """マルチタスク用LSTMモデル
+
+    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
+    """
+
+    def __init__(self, D_i, D_h, D_o, n_classes=3, dropout=0.5):
+        super(LSTMMultiTaskModel, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+
+        self.linear = nn.Linear(D_h*2, D_o)
+        self.linear_persona = nn.Linear(D_o, 5)
+        self.linear_sentiment = nn.Linear(D_o, 1)
+
+    def forward(self, x):
+        h, _ = self.lstm(x)
+        h = F.relu(self.linear(h))
+        h = self.dropout(h)
+        y_persona = self.linear_persona(h)
+        y_sentiment = self.linear_sentiment(h)
+
+        return y_persona, y_sentiment
+
+class LSTMMultiTaskModelv2(nn.Module):
+    """マルチタスク用LSTMモデル
+
+    心象ラベルとしてTernary(3段階)を使用。誤差関数はCrossEntropyを想定。
+    """
+
+    def __init__(self, D_i, D_h, D_o, n_classes=3, dropout=0.5):
+        super(LSTMMultiTaskModelv2, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+
+        self.linear = nn.Linear(D_h*2, D_o)
+        self.linear_persona = nn.Linear(D_o, 5)
+        self.linear_sentiment = nn.Linear(D_o, 3)
+
+    def forward(self, x):
+        h, _ = self.lstm(x)
+        h = F.relu(self.linear(h))
+        h = self.dropout(h)
+        y_persona = self.linear_persona(h)
+        y_sentiment = self.linear_sentiment(h)
+
+        return y_persona, y_sentiment
+
+
+
 class LSTMSentimentModel(nn.Module):
 
     def __init__(self, D_i, D_h, D_o, n_classes=3, dropout=0.5):
         super(LSTMSentimentModel, self).__init__()
-        self.dropout = nn.Dropout(dropout)
-        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
-
-        self.linear1 = nn.Linear(D_h*2, D_o)
-        self.linear2 = nn.Linear(D_o, n_classes)
-
-    def forward(self, x):
-        h, _ = self.lstm(x)
-        h = F.relu(self.linear1(h))
-        h = self.dropout(h)
-        y = self.linear2(h)
-
-        return y
-
-class LSTMSentimentModel2(nn.Module):
-
-    def __init__(self, D_i, D_h, D_o, n_classes=3, dropout=0.5):
-        super(LSTMSentimentModel2, self).__init__()
         self.dropout = nn.Dropout(dropout)
         self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
 

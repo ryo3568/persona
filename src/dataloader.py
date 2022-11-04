@@ -14,7 +14,7 @@ class HazumiDataset(Dataset):
     """
 
 
-    def __init__(self, test_file, target=5, train=True, scaler=None):
+    def __init__(self, test_file, train=True, scaler=None):
     
         path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
@@ -23,7 +23,6 @@ class HazumiDataset(Dataset):
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
-        self.target = target
 
         if train:
             for x in self.vid:
@@ -46,17 +45,10 @@ class HazumiDataset(Dataset):
     def __getitem__(self, index):
         vid = self.keys[index] 
 
-        if self.target == 5:
-            return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
-                torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-                torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-                torch.FloatTensor(self.third_persona[vid]),\
-                vid
-
         return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor([self.third_persona[vid][self.target]]),\
+            torch.FloatTensor(self.persona[vid]),\
             vid
         
 
@@ -75,7 +67,7 @@ class HazumiMultiTaskDataset(Dataset):
 
     """
 
-    def __init__(self, test_file, target=5, train=True, scaler=None):
+    def __init__(self, test_file, train=True, scaler=None, args=None):
     
         path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
@@ -84,7 +76,8 @@ class HazumiMultiTaskDataset(Dataset):
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
-        self.target = target
+
+        self.args = args
 
         if train:
             for x in self.vid:
@@ -107,27 +100,34 @@ class HazumiMultiTaskDataset(Dataset):
     def __getitem__(self, index):
         vid = self.keys[index] 
 
-        if self.target == 5:
-            return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
-                torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-                torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-                torch.FloatTensor(self.third_persona[vid]),\
-                torch.FloatTensor(self.third_sentiment[vid]),\
-                vid
+        if self.args.sentiment_first_annot:
+            sentiment = self.sentiment
+            s_ternary = self.SS_ternary
+        else:
+            sentiment = self.third_sentiment
+            s_ternary = self.TS_ternary
 
+        if self.args.persona_first_annot:
+            persona = self.persona
+        else:
+            persona = self.third_persona
+
+        
+        
         return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor([self.third_persona[vid][self.target]]),\
+            torch.FloatTensor(persona[vid]),\
+            torch.FloatTensor(sentiment[vid]),\
+            torch.LongTensor(s_ternary[vid]),\
             vid
-        
 
     def __len__(self):
         return self.len 
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
-        return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
+        return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
 
 
 

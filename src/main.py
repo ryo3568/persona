@@ -21,9 +21,9 @@ def get_train_valid_sampler(trainset, valid=0.1):
     split = int(valid*size) 
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, target=5, num_workers=0, pin_memory=False):
-    trainset = HazumiDataset(test_file, target=target)
-    testset = HazumiDataset(test_file, target=target, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, pin_memory=False):
+    trainset = HazumiDataset(test_file)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -51,7 +51,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     losses = []
     preds = [] 
     labels = [] 
-    masks = []
+
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -61,7 +61,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, mask, label =\
+        text, visual, audio, label =\
         [d.cuda() for d in data[:-1]] if cuda else data[:-1]
 
         # data = audio
@@ -78,7 +78,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
         preds.append(pred.data.cpu().numpy())
         labels.append(label.data.cpu().numpy())
-        masks.append(mask.view(-1).cpu().numpy())
         losses.append(loss.item())
         if train:
             loss.backward()
@@ -90,14 +89,13 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     if preds != []:
         preds = np.concatenate(preds)
         labels = np.concatenate(labels) 
-        masks = np.concatenate(masks)
     else:
         return float('nan'), [], [], []
 
     # avg_loss = round(np.sum(losses)/np.sum(masks), 4)
     avg_loss = round(np.sum(losses)/len(losses), 4)
 
-    return avg_loss, labels, preds, masks
+    return avg_loss, labels, preds
 
 
 
@@ -118,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     parser.add_argument('--iter', type=int, default=5, help='number of experiments')
-    parser.add_argument('--target', type=int, default=5, help='0:extraversion, 1:agreauleness, 2:conscientiousness, 3:neuroticism, 4:openness, 5:all')
+
 
     args = parser.parse_args()
 
@@ -138,12 +136,8 @@ if __name__ == '__main__':
     cuda = args.cuda 
     n_epochs = args.epochs 
     rate = args.rate
-    target = args.target
-    
-    if target == 5:
-        n_classes = 5
-    else:
-        n_classes = 1
+
+    n_classes = 5
 
     D_i = 3063
     D_h = 100 
@@ -178,9 +172,9 @@ if __name__ == '__main__':
 
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-            train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, target=target) 
+            train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1) 
 
-            best_loss, best_label, best_pred, best_mask = None, None, None, None 
+            best_loss, best_label, best_pred = None, None, None
 
             test_losses = []
 
@@ -188,16 +182,16 @@ if __name__ == '__main__':
 
             for epoch in range(n_epochs):
                 # start_time = time.time() 
-                train_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-                valid_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-                test_loss, test_label, test_pred, test_mask = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+                train_loss, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                valid_loss, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
+                test_loss, test_label, test_pred = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
 
                 test_losses.append(valid_loss)
 
 
                 if best_loss == None or best_loss > test_loss:
-                    best_loss, best_label, best_pred, best_mask = \
-                    test_loss, test_label, test_pred, test_mask
+                    best_loss, best_label, best_pred = \
+                    test_loss, test_label, test_pred
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', test_loss, epoch) 
@@ -209,11 +203,6 @@ if __name__ == '__main__':
             if args.tensorboard:
                 writer.close() 
 
-            # print('Test performance..')
-            # print('Loss {}'.format(best_loss))
-            # print('testfile {}'.format(testfile))
-            # print('best label {}'.format(best_label))
-            # print('best pred {}'.format(best_pred))
 
             loss.append(best_loss)
 
