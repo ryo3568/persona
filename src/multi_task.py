@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMMultiTaskModel, LSTMMultiTaskModelv2
-from dataloader import HazumiMultiTaskDataset
+from model import LSTMMultiTaskModel
+from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
 
@@ -22,8 +22,8 @@ def get_train_valid_sampler(trainset, valid=0.1):
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
 def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_workers=2, pin_memory=False):
-    trainset = HazumiMultiTaskDataset(test_file, args=args)
-    testset = HazumiMultiTaskDataset(test_file, train=False, scaler=trainset.scaler, args=args) 
+    trainset = HazumiDataset(test_file, args=args)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler, args=args) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -196,10 +196,10 @@ if __name__ == '__main__':
 
             if not args.regression:
 
-                model = LSTMMultiTaskModelv2(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
                 loss_function2 = nn.CrossEntropyLoss() # 心象
             else:
-                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout) 
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout) 
                 loss_function2 = nn.MSELoss() # 心象
 
             loss_function1 = nn.MSELoss() # 性格特性

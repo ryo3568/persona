@@ -12,7 +12,7 @@ from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMSentimentModel
-from dataloader import HazumiSentimentDataset
+from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
 
@@ -23,8 +23,8 @@ def get_train_valid_sampler(trainset, valid=0.1):
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
 def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_workers=2, pin_memory=False):
-    trainset = HazumiSentimentDataset(test_file, args=args)
-    testset = HazumiSentimentDataset(test_file, train=False, scaler=trainset.scaler, args=args) 
+    trainset = HazumiDataset(test_file, args=args)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler, args=args) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -185,10 +185,10 @@ if __name__ == '__main__':
         for testfile in tqdm(testfiles, position=0, leave=True):
 
             if not args.regression:
-                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = LSTMModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function = nn.CrossEntropyLoss() 
             else:
-                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                model = LSTMModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
                 loss_function = nn.MSELoss()
 
 
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_loss, best_label, best_pred = None, None, None
+            best_loss, best_label, best_pred, best_model = None, None, None
 
             # es = EarlyStopping(patience=10, verbose=1)
 
@@ -211,8 +211,8 @@ if __name__ == '__main__':
 
 
                 if best_loss == None or best_loss > tst_loss:
-                    best_loss, best_label, best_pred = \
-                    tst_loss, tst_label, tst_pred
+                    best_loss, best_label, best_pred, best_model = \
+                    tst_loss, tst_label, tst_pred, model.state_dict()
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_loss, epoch) 
@@ -221,6 +221,7 @@ if __name__ == '__main__':
                 # if es(val_persona_loss):
                 #     break
 
+            torch.save(best_model, f'../data/model/{testfile}.pt')
 
             if args.tensorboard:
                 writer.close() 
@@ -239,4 +240,4 @@ if __name__ == '__main__':
 
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
-    print(f'正解率： {np.arrray(accuracies).mean():.3f}')
+    print(f'正解率： {np.array(accuracies).mean():.3f}')
