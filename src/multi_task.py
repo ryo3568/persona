@@ -279,5 +279,5 @@ if __name__ == '__main__':
     print(f'損失（心象）： {np.array(sentiment_losses).mean():.3f}')
     print(f'損失（性格特性）： {np.array(persona_losses).mean():.3f}')
 
-    if not args.regresssion:
+    if not args.regression:
         print(f'正解率： {np.array(accuracies).mean():.3f}')
