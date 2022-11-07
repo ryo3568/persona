@@ -71,6 +71,25 @@ class LSTMModel(nn.Module):
         y = self.linear2(h)
         return y
 
+class LSTMSentimentModel(nn.Module):
+
+    def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
+        
+        super(LSTMSentimentModel, self).__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+
+        self.linear1 = nn.Linear(D_h*2, D_o)
+        self.linear2 = nn.Linear(D_o, n_classes)
+
+    def forward(self, x):
+        h, _ = self.lstm(x)
+        h = F.relu(self.linear1(h))
+        h = self.dropout(h)
+        y = self.linear2(h)
+        return y
+
 
 class LSTMMultiTaskModel(nn.Module):
     """マルチタスク用LSTMモデル

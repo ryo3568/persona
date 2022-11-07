@@ -62,7 +62,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, sentiment, s_ternary =\
+        text, visual, audio, persona, sentiment, s_ternary =\
         [d.cuda() for d in data[:-1]] if cuda else data[:-1]
 
         # data = audio
@@ -185,10 +185,10 @@ if __name__ == '__main__':
         for testfile in tqdm(testfiles, position=0, leave=True):
 
             if not args.regression:
-                model = LSTMModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function = nn.CrossEntropyLoss() 
             else:
-                model = LSTMModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
                 loss_function = nn.MSELoss()
 
 
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_loss, best_label, best_pred, best_model = None, None, None
+            best_loss, best_label, best_pred, best_model = None, None, None, None
 
             # es = EarlyStopping(patience=10, verbose=1)
 
