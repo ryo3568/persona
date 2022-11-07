@@ -128,13 +128,12 @@ class LSTMSentimentModel(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
 
-        self.linear = nn.Linear(D_h*2, D_o)
-        self.smax_fc = nn.Linear(D_o, n_classes)
+        self.linear1 = nn.Linear(D_h*2, D_o)
+        self.linear2 = nn.Linear(D_o, n_classes)
 
     def forward(self, x):
         h, _ = self.lstm(x)
-        h = F.relu(self.linear(h))
+        h = F.relu(self.linear1(h))
         h = self.dropout(h)
-        log_prob = F.log_softmax(self.smax_fc(h), 2)
-
-        return log_prob
+        y = self.linear2(h)
+        return y
