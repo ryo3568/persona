@@ -3,11 +3,12 @@ import argparse, time, pickle
 import os
 import glob
 from tqdm import tqdm
+import itertools
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMMultiTaskModel
@@ -101,7 +102,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         # 学習ログ
         persona_losses.append(loss_persona.item())
         sentiment_losses.append(loss_sentiment.item())
-        all_losses.append(loss.item)
+        all_losses.append(loss.item())
         pred_personas.append(pred_persona.data.cpu().numpy())
         pred_sentiments.append(pred_sentiment.data.cpu().numpy())
         y_personas.append(y_persona.data.cpu().numpy())
@@ -129,10 +130,11 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
     # else:
     #     return float('nan'), [], []
 
+    avg_all_loss = round(np.sum(all_losses)/len(all_losses), 4)
     avg_persona_loss = round(np.sum(persona_losses)/len(persona_losses), 4)
     avg_sentiment_loss = round(np.sum(sentiment_losses)/len(sentiment_losses), 4)
 
-    return all_losses, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments
+    return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -184,22 +186,28 @@ if __name__ == '__main__':
 
     testfiles = sorted(testfiles)
 
-    losses = []
+    all_losses = []
+    sentiment_losses = []
+    persona_losses = []
+    accuracies = []
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
-        loss = []
+        all_loss = []
+        sentiment_loss = []
+        persona_loss = []
+        accuracy = []
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
             if not args.regression:
 
-                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function2 = nn.CrossEntropyLoss() # 心象
             else:
-                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout) 
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout) 
                 loss_function2 = nn.MSELoss() # 心象
 
             loss_function1 = nn.MSELoss() # 性格特性
@@ -212,7 +220,9 @@ if __name__ == '__main__':
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_persona_loss, best_persona_label, best_pred = None, None, None
+            best_persona_loss, best_persona_label, best_persona_pred = None, None, None
+            best_sentiment_loss, best_sentiment_label, best_sentiment_pred = None, None, None 
+            best_all_loss = None
 
             # es = EarlyStopping(patience=10, verbose=1)
 
@@ -223,10 +233,15 @@ if __name__ == '__main__':
                 tst_persona_label, tst_sentiment_label = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
 
 
-                if best_persona_loss == None or best_persona_loss > tst_persona_loss:
-                    best_persona_loss, best_persona_label, best_pred = \
+                if best_all_loss == None or best_all_loss > tst_all_loss:
+                    best_persona_loss, best_persona_label, best_persona_pred = \
                     tst_persona_loss, tst_persona_label, tst_persona_pred
-                    print(epoch)
+
+                    best_sentiment_loss, best_sentiment_label, best_sentiment_pred = \
+                    tst_sentiment_loss, tst_sentiment_label, tst_sentiment_pred
+
+                    best_all_loss = tst_all_loss
+
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_persona_loss, epoch) 
@@ -239,10 +254,30 @@ if __name__ == '__main__':
             if args.tensorboard:
                 writer.close() 
 
-            loss.append(best_persona_loss)
 
-        losses.append(np.array(loss).mean())
+            all_loss.append(best_all_loss)
+            sentiment_loss.append(best_sentiment_loss)
+            persona_loss.append(best_persona_loss)
+
+            if not args.regression:
+                best_sentiment_pred = list(itertools.chain.from_iterable(best_sentiment_pred))
+                best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label)) 
+
+                accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
+
+
+        all_losses.append(np.array(all_loss).mean())
+        sentiment_losses.append(np.array(sentiment_loss).mean())
+        persona_losses.append(np.array(persona_loss).mean())
+
+        if not args.regression:
+            accuracies.append(np.array(accuracy).mean())
+
 
     print('=====Result=====')
-    print(f'損失： {np.array(losses).mean():.3f}')
-    print(losses)
+    print(f'損失（全体）： {np.array(all_losses).mean():.3f}')
+    print(f'損失（心象）： {np.array(sentiment_losses).mean():.3f}')
+    print(f'損失（性格特性）： {np.array(persona_losses).mean():.3f}')
+
+    if not args.regresssion:
+        print(f'正解率： {np.array(accuracies).mean():.3f}')

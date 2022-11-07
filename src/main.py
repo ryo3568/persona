@@ -3,14 +3,15 @@ import argparse, time, pickle
 import os
 import glob
 from tqdm import tqdm
+import itertools 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
+from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMModel
-
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -21,9 +22,9 @@ def get_train_valid_sampler(trainset, valid=0.1):
     split = int(valid*size) 
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, pin_memory=False):
-    trainset = HazumiDataset(test_file)
-    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(test_file, args=args)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler, args=args) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
 
@@ -47,11 +48,11 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=0, pin_m
 
     return train_loader, valid_loader, test_loader 
 
+
 def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False, rate=1.0):
     losses = []
     preds = [] 
-    labels = [] 
-
+    labels = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -61,7 +62,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, label =\
+        text, visual, audio, persona, sentiment, s_ternary =\
         [d.cuda() for d in data[:-1]] if cuda else data[:-1]
 
         # data = audio
@@ -72,35 +73,57 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             seq_len = int(rate*data.shape[1])
             data = data[:, :seq_len, :]
             
-
+        
         pred = model(data)
-        loss = loss_function(pred, label)
 
-        preds.append(pred.data.cpu().numpy())
-        labels.append(label.data.cpu().numpy())
+        # if not args.regression:
+        #     s_ternary = s_ternary.view(-1)
+        #     y_sentiment = s_ternary
+        #     pred_sentiment = pred_sentiment.view(-1, 3)
+        # else:
+        #     sentiment = sentiment.view(text.shape[0], -1, 1)
+        #     y_sentiment = sentiment
+
+
+        # y = torch.repeat_interleave(persona, repeats=text.shape[1], dim=0).view(-1, text.shape[1], 5)
+        loss = loss_function(pred, persona)
+        
+
+        # if not args.regression:
+        #     pred_sentiment = torch.argmax(pred_sentiment, dim=1)
+
+        # 学習ログ
         losses.append(loss.item())
+        preds.append(pred.data.cpu().numpy())
+        labels.append(persona.data.cpu().numpy())
+
+        # print('-----------------------')
+        # print(pred_persona.size())
+        # print(pred_sentiment.size())
+        # print(y_persona.size())
+        # print(y_sentiment.size())
+
         if train:
             loss.backward()
             if args.tensorboard:
                 for param in model.named_parameters():
                     writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
-        
-    if preds != []:
-        preds = np.concatenate(preds)
-        labels = np.concatenate(labels) 
-    else:
-        return float('nan'), [], [], []
 
-    # avg_loss = round(np.sum(losses)/np.sum(masks), 4)
+
+    # if pred_personas != []:
+    #     pred_personas = np.concatenate(pred_pe)
+    #     personas = np.concatenate(personas) 
+    #     sentiments = np.concatenate(sentiments)
+        
+    # else:
+    #     return float('nan'), [], []
+
     avg_loss = round(np.sum(losses)/len(losses), 4)
 
-    return avg_loss, labels, preds
-
-
+    return avg_loss, preds, labels
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
@@ -116,8 +139,10 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     parser.add_argument('--iter', type=int, default=5, help='number of experiments')
-
-
+    parser.add_argument('--regression', action='store_true', default=False, help='estimating sentiment with regression model')
+    parser.add_argument('--persona_first_annot', action='store_true', default=False, help='using persona label annotated by user')
+    parser.add_argument('--sentiment_first_annot', action='store_true', default=False, help='using sentiment label annotated by user')
+    
     args = parser.parse_args()
 
     print(args)
@@ -136,7 +161,7 @@ if __name__ == '__main__':
     cuda = args.cuda 
     n_epochs = args.epochs 
     rate = args.rate
-
+    
     n_classes = 5
 
     D_i = 3063
@@ -158,57 +183,64 @@ if __name__ == '__main__':
         loss = []
 
         for testfile in tqdm(testfiles, position=0, leave=True):
-            model = LSTMModel(D_i, D_h, D_o,n_classes=n_classes, dropout=args.dropout)
+
+            # if not args.regression:
+            #     model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+            #     loss_function = nn.CrossEntropyLoss() 
+            # else:
+            #     model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+            #     loss_function = nn.MSELoss()
+
+            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
+            loss_function = nn.MSELoss()
 
             if args.pretrained:
-                model.load_state_dict(torch.load('../data/model/model.pt'), strict=False)
-            
+                model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
 
+                        
             if cuda:
                 model.cuda()
-            
-            loss_function = nn.MSELoss()
-            # loss_function = nn.MaskedMSELoss()
 
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-            train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1) 
+            train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_loss, best_label, best_pred = None, None, None
+            best_loss, best_label, best_pred= None, None, None
 
-            test_losses = []
-
-            es = EarlyStopping(patience=10, verbose=1)
+            # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                # start_time = time.time() 
-                train_loss, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-                valid_loss, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-                test_loss, test_label, test_pred = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
-
-                test_losses.append(valid_loss)
+                trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                val_loss, _, _= train_or_eval_model(model, loss_function, valid_loader, epoch)
+                tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
 
 
-                if best_loss == None or best_loss > test_loss:
+                if best_loss == None or best_loss > tst_loss:
                     best_loss, best_label, best_pred = \
-                    test_loss, test_label, test_pred
+                    tst_loss, tst_label, tst_pred
 
                 if args.tensorboard:
-                    writer.add_scalar('test: loss', test_loss, epoch) 
-                    writer.add_scalar('train: loss', train_loss, epoch) 
+                    writer.add_scalar('test: loss', tst_loss, epoch) 
+                    writer.add_scalar('train: loss', trn_loss, epoch) 
                 
-                if es(valid_loss):
-                    break
+                # if es(val_persona_loss):
+                #     break
+
 
             if args.tensorboard:
                 writer.close() 
 
-
             loss.append(best_loss)
+
+            # best_pred = list(itertools.chain.from_iterable(best_pred))
+            # best_label = list(itertools.chain.from_iterable(best_label))          
+
+            # accuracy.append(accuracy_score(best_label, best_pred))
+            # # print(classification_report(best_label, best_pred))
 
         losses.append(np.array(loss).mean())
 
-    print('Result')
-    print('損失：', np.array(losses).mean())
-    print(losses)
 
+    print('=====Result=====')
+    print(f'損失： {np.array(losses).mean():.3f}')
+    print(losses)

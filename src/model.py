@@ -104,7 +104,7 @@ class LSTMMultiTaskModel(nn.Module):
 
         self.linear = nn.Linear(D_h*2, D_o)
         self.linear_persona = nn.Linear(D_o, 5)
-        self.linear_sentiment = nn.Linear(D_o, 1)
+        self.linear_sentiment = nn.Linear(D_o, n_classes)
 
     def forward(self, x):
         h, _ = self.lstm(x)

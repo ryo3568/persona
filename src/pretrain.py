@@ -137,6 +137,7 @@ if __name__ == '__main__':
     # 追加
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     parser.add_argument('--iter', type=int, default=5, help='number of experiments')
+    parser.add_argument('--save_model', action='store_true', default=False, help='save pretrained model parameter')
     parser.add_argument('--regression', action='store_true', default=False, help='estimating sentiment with regression model')
     parser.add_argument('--persona_first_annot', action='store_true', default=False, help='using persona label annotated by user')
     parser.add_argument('--sentiment_first_annot', action='store_true', default=False, help='using sentiment label annotated by user')
@@ -221,23 +222,29 @@ if __name__ == '__main__':
                 # if es(val_persona_loss):
                 #     break
 
-            torch.save(best_model, f'../data/model/{testfile}.pt')
+            if args.save_model:
+                torch.save(best_model, f'../data/model/{testfile}.pt')
 
             if args.tensorboard:
                 writer.close() 
 
             loss.append(best_loss)
 
-            best_pred = list(itertools.chain.from_iterable(best_pred))
-            best_label = list(itertools.chain.from_iterable(best_label))          
+            if not args.regression:
+                best_pred = list(itertools.chain.from_iterable(best_pred))
+                best_label = list(itertools.chain.from_iterable(best_label))          
 
-            accuracy.append(accuracy_score(best_label, best_pred))
-            # print(classification_report(best_label, best_pred))
+
+                accuracy.append(accuracy_score(best_label, best_pred))
+                # print(classification_report(best_label, best_pred))
 
         losses.append(np.array(loss).mean())
-        accuracies.append(np.array(accuracy).mean())
+
+        if not args.regression:
+            accuracies.append(np.array(accuracy).mean())
 
 
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
-    print(f'正解率： {np.array(accuracies).mean():.3f}')
+    if not args.regression:
+        print(f'正解率： {np.array(accuracies).mean():.3f}')
