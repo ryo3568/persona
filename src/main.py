@@ -231,9 +231,10 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
-            print(best_label)
-            print(best_pred)
-            print(best_loss)
+
+
+            best_pred = list(itertools.chain.from_iterable(best_pred))
+            print(np.array(best_pred))
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
             # best_label = list(itertools.chain.from_iterable(best_label))          
