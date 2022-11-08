@@ -192,7 +192,7 @@ if __name__ == '__main__':
             #     loss_function = nn.MSELoss()
 
             model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
-            loss_function = nn.MSELoss()
+            loss_function = nn.MSELoss(reduction='sum')
 
             if args.pretrained:
                 model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
@@ -231,6 +231,9 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
+            print(best_label)
+            print(best_pred)
+            print(best_loss)
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
             # best_label = list(itertools.chain.from_iterable(best_label))          
