@@ -192,7 +192,7 @@ if __name__ == '__main__':
             #     loss_function = nn.MSELoss()
 
             model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
-            loss_function = nn.MSELoss(reduction='sum')
+            loss_function = nn.MSELoss()
 
             if args.pretrained:
                 model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
