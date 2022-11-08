@@ -265,6 +265,9 @@ if __name__ == '__main__':
 
                 accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
 
+            best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
+            print(np.array(best_persona_pred).mean(axis=1))
+
 
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())
