@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMSentimentModel
@@ -86,7 +86,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
 
         loss_sentiment = loss_function(pred_sentiment, y_sentiment)
-        
 
         if not args.regression:
             pred_sentiment = torch.argmax(pred_sentiment, dim=1)
@@ -175,6 +174,7 @@ if __name__ == '__main__':
 
     losses = []
     accuracies = []
+    correct = []
 
     for i in range(args.iter):
 
@@ -182,6 +182,7 @@ if __name__ == '__main__':
 
         loss = []
         accuracy = []
+        cor = 0
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -236,15 +237,18 @@ if __name__ == '__main__':
 
 
                 accuracy.append(accuracy_score(best_label, best_pred))
-                # print(classification_report(best_label, best_pred))
-
+                cor += accuracy_score(best_label, best_pred, normalize=False)
+                
         losses.append(np.array(loss).mean())
 
         if not args.regression:
             accuracies.append(np.array(accuracy).mean())
+            correct.append(cor)
+            
 
 
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
     if not args.regression:
         print(f'正解率： {np.array(accuracies).mean():.3f}')
+        print(f'正解数： {correct} / 2439')
