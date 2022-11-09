@@ -269,6 +269,7 @@ if __name__ == '__main__':
                 accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
 
             best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
+            print(testfile, best_persona_loss)
             best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
             print((np.around(np.square(np.array(best_persona_pred[0]) - np.array(best_persona_label[0])), 3).tolist()))
 
@@ -278,8 +279,6 @@ if __name__ == '__main__':
 
         if not args.regression:
             accuracies.append(np.array(accuracy).mean())
-
-        print(multi)
 
 
     print('=====Result=====')

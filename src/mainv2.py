@@ -236,9 +236,8 @@ if __name__ == '__main__':
 
             loss.append(best_loss)
 
-            print(best_pred[0])
-            print(best_label)
-            print(np.square(np.array(best_pred)[0] - np.array(best_label)).tolist())
+
+            # print(np.square(np.array(best_pred)[0] - np.array(best_label)).tolist())
             # best_pred = list(itertools.chain.from_iterable(best_pred))
             # print(np.array(best_pred))
 
