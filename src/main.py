@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel
+from model import LSTMModel, biLSTMModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -76,32 +76,14 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         
         pred = model(data)
 
-        # if not args.regression:
-        #     s_ternary = s_ternary.view(-1)
-        #     y_sentiment = s_ternary
-        #     pred_sentiment = pred_sentiment.view(-1, 3)
-        # else:
-        #     sentiment = sentiment.view(text.shape[0], -1, 1)
-        #     y_sentiment = sentiment
-
-
-        # y = torch.repeat_interleave(persona, repeats=text.shape[1], dim=0).view(-1, text.shape[1], 5)
         loss = loss_function(pred, persona)
         
-
-        # if not args.regression:
-        #     pred_sentiment = torch.argmax(pred_sentiment, dim=1)
 
         # 学習ログ
         losses.append(loss.item())
         preds.append(pred.data.cpu().numpy())
         labels.append(persona.data.cpu().numpy())
 
-        # print('-----------------------')
-        # print(pred_persona.size())
-        # print(pred_sentiment.size())
-        # print(y_persona.size())
-        # print(y_sentiment.size())
 
         if train:
             loss.backward()
@@ -110,14 +92,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
                     writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
 
-
-    # if pred_personas != []:
-    #     pred_personas = np.concatenate(pred_pe)
-    #     personas = np.concatenate(personas) 
-    #     sentiments = np.concatenate(sentiments)
-        
-    # else:
-    #     return float('nan'), [], []
 
     avg_loss = round(np.sum(losses)/len(losses), 4)
 
@@ -184,13 +158,6 @@ if __name__ == '__main__':
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            # if not args.regression:
-            #     model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
-            #     loss_function = nn.CrossEntropyLoss() 
-            # else:
-            #     model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
-            #     loss_function = nn.MSELoss()
-
             model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
             loss_function = nn.MSELoss()
 
@@ -234,13 +201,6 @@ if __name__ == '__main__':
 
 
             best_pred = list(itertools.chain.from_iterable(best_pred))
-            print(np.array(best_pred))
-
-            # best_pred = list(itertools.chain.from_iterable(best_pred))
-            # best_label = list(itertools.chain.from_iterable(best_label))          
-
-            # accuracy.append(accuracy_score(best_label, best_pred))
-            # # print(classification_report(best_label, best_pred))
 
         losses.append(np.array(loss).mean())
 

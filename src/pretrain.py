@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMSentimentModel
+from model import LSTMSentimentModel, biLSTMSentimentModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -95,11 +95,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         pred_sentiments.append(pred_sentiment.data.cpu().numpy())
         y_sentiments.append(y_sentiment.data.cpu().numpy())
 
-        # print('-----------------------')
-        # print(pred_persona.size())
-        # print(pred_sentiment.size())
-        # print(y_persona.size())
-        # print(y_sentiment.size())
 
         if train:
             loss_sentiment.backward()
@@ -108,14 +103,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
                     writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
 
-
-    # if pred_personas != []:
-    #     pred_personas = np.concatenate(pred_pe)
-    #     personas = np.concatenate(personas) 
-    #     sentiments = np.concatenate(sentiments)
-        
-    # else:
-    #     return float('nan'), [], []
 
     avg_sentiment_loss = round(np.sum(sentiment_losses)/len(sentiment_losses), 4)
 
@@ -187,10 +174,10 @@ if __name__ == '__main__':
         for testfile in tqdm(testfiles, position=0, leave=True):
 
             if not args.regression:
-                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function = nn.CrossEntropyLoss() 
             else:
-                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
                 loss_function = nn.MSELoss()
 
 
