@@ -34,6 +34,25 @@ class LSTMModel(nn.Module):
         y = self.linear2(h)
         return y
 
+class GRUModel(nn.Module):
+
+    def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
+        
+        super(GRUModel, self).__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        self.gru = nn.GRU(input_size=D_i, hidden_size=D_h,  batch_first=True)
+
+        self.linear1 = nn.Linear(D_h, D_o)
+        self.linear2 = nn.Linear(D_o, n_classes)
+
+    def forward(self, x):
+        out, _ = self.gru(x)
+        h = F.relu(self.linear1(out[:, -1]))
+        h = self.dropout(h)
+        y = self.linear2(h)
+        return y
+
 class biLSTMModel(nn.Module):
 
     def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
@@ -48,6 +67,26 @@ class biLSTMModel(nn.Module):
 
     def forward(self, x):
         _, hc = self.lstm(x)
+        out = torch.cat([hc[0][0], hc[0][1]], dim=1)
+        h = F.relu(self.linear1(out))
+        h = self.dropout(h)
+        y = self.linear2(h)
+        return y
+
+class biGRUModel(nn.Module):
+
+    def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
+        
+        super(GRUModel, self).__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        self.gru = nn.GRU(input_size=D_i, hidden_size=D_h,  bidirectional=True, batch_first=True)
+
+        self.linear1 = nn.Linear(D_h*2, D_o)
+        self.linear2 = nn.Linear(D_o, n_classes)
+
+    def forward(self, x):
+        _, hc = self.gru(x)
         out = torch.cat([hc[0][0], hc[0][1]], dim=1)
         h = F.relu(self.linear1(out))
         h = self.dropout(h)

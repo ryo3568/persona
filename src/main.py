@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel, biLSTMModel
+from model import LSTMModel, biLSTMModel, GRUModel, biGRUModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
+            model = GRUModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
             loss_function = nn.MSELoss()
 
             if args.pretrained:
