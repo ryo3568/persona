@@ -200,10 +200,10 @@ if __name__ == '__main__':
 
             if not args.regression:
 
-                model = biLSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function2 = nn.CrossEntropyLoss() # 心象
             else:
-                model = biLSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout) 
+                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout) 
                 loss_function2 = nn.MSELoss() # 心象
 
             loss_function1 = nn.MSELoss() # 性格特性

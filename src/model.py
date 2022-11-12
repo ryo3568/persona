@@ -77,7 +77,7 @@ class biGRUModel(nn.Module):
 
     def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
         
-        super(GRUModel, self).__init__()
+        super(biGRUModel, self).__init__()
 
         self.dropout = nn.Dropout(dropout)
         self.gru = nn.GRU(input_size=D_i, hidden_size=D_h,  bidirectional=True, batch_first=True)
@@ -145,7 +145,7 @@ class LSTMMultiTaskModel(nn.Module):
         self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, batch_first=True)
 
         self.linear = nn.Linear(D_h, D_o)
-        self.linear_persona = nn.Linear(D_o, 5)
+        self.linear_persona = nn.Linear(D_o, 1)
         self.linear_sentiment = nn.Linear(D_o, n_classes)
 
     def forward(self, x):
