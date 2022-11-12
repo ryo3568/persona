@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMMultiTaskModel
+from model import LSTMMultiTaskModel, biLSTMMultiTaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -81,7 +81,6 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         pred_persona, pred_sentiment = model(data)
 
 
-
         if not args.regression:
             s_ternary = s_ternary.view(-1)
             y_sentiment = s_ternary
@@ -91,8 +90,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
             y_sentiment = sentiment
 
 
-        y_persona = torch.repeat_interleave(persona, repeats=text.shape[1], dim=0).view(-1, text.shape[1], 5)
-        loss_persona = loss_function1(pred_persona, y_persona)
+        loss_persona = loss_function1(pred_persona, persona)
 
         loss_sentiment = loss_function2(pred_sentiment, y_sentiment)
         
@@ -107,14 +105,9 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         all_losses.append(loss.item())
         pred_personas.append(pred_persona.data.cpu().numpy())
         pred_sentiments.append(pred_sentiment.data.cpu().numpy())
-        y_personas.append(y_persona.data.cpu().numpy())
+        y_personas.append(persona.data.cpu().numpy())
         y_sentiments.append(y_sentiment.data.cpu().numpy())
 
-        # print('-----------------------')
-        # print(pred_persona.size())
-        # print(pred_sentiment.size())
-        # print(y_persona.size())
-        # print(y_sentiment.size())
 
         if train:
             loss.backward()
@@ -207,10 +200,10 @@ if __name__ == '__main__':
 
             if not args.regression:
 
-                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = biLSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function2 = nn.CrossEntropyLoss() # 心象
             else:
-                model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout) 
+                model = biLSTMMultiTaskModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout) 
                 loss_function2 = nn.MSELoss() # 心象
 
             loss_function1 = nn.MSELoss() # 性格特性
@@ -268,10 +261,8 @@ if __name__ == '__main__':
 
                 accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
 
-            best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
-            print(testfile, best_persona_loss)
-            best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
-            print((np.around(np.square(np.array(best_persona_pred[0]) - np.array(best_persona_label[0])), 3).tolist()))
+            # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
+            # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())

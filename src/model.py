@@ -111,11 +111,12 @@ class LSTMMultiTaskModel(nn.Module):
 
     def forward(self, x):
         out, _ = self.lstm(x)
-        h = F.relu(self.linear(out[:, -1]))
-        h = self.dropout(h)
-        y_persona = self.linear_persona(h)
-        y_sentiment = self.linear_sentiment(h)
-        y_sentiment = self.linear_sentiment(h)
+        h_persona = F.relu(self.linear(out[:, -1]))
+        h_sentiment = F.relu(self.linear(out))
+        h_persona = self.dropout(h_persona)
+        h_sentiment = self.dropout(h_sentiment)
+        y_persona = self.linear_persona(h_persona)
+        y_sentiment = self.linear_sentiment(h_sentiment)
 
         return y_persona, y_sentiment
 
@@ -128,19 +129,21 @@ class biLSTMMultiTaskModel(nn.Module):
     def __init__(self, D_i, D_h, D_o, n_classes=3, dropout=0.5):
         super(biLSTMMultiTaskModel, self).__init__()
         self.dropout = nn.Dropout(dropout)
-        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+        self.lstm = nn.LSTM(input_size=D_i, hidden_size=D_h, bidirectional=True, batch_first=True)
 
         self.linear = nn.Linear(D_h*2, D_o)
         self.linear_persona = nn.Linear(D_o, 5)
         self.linear_sentiment = nn.Linear(D_o, n_classes)
 
     def forward(self, x):
-        h, _ = self.lstm(x)
-        h = F.relu(self.linear(h))
-        h = self.dropout(h)
-        y_persona = self.linear_persona(h)
-        y_sentiment = self.linear_sentiment(h)
-        y_sentiment = self.linear_sentiment(h)
+        out, hc = self.lstm(x)
+        hc = torch.cat([hc[0][0], hc[0][1]], dim=1)
+        h_persona = F.relu(self.linear(hc))
+        h_sentiment = F.relu(self.linear(out))
+        h_persona = self.dropout(h_persona)
+        h_sentiment = self.dropout(h_sentiment)
+        y_persona = self.linear_persona(h_persona)
+        y_sentiment = self.linear_sentiment(h_sentiment)
 
         return y_persona, y_sentiment
 
