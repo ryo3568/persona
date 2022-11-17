@@ -194,7 +194,11 @@ if __name__ == '__main__':
         sentiment_loss = []
         persona_loss = []
         accuracy = []
-        multi = []
+
+        pos = 0 
+        neu = 0 
+        neg = 0
+
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -261,14 +265,18 @@ if __name__ == '__main__':
 
                 accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
 
+                neg += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0]
+                neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1] 
+                pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]          
+
 
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
-        print(accuracy)
-        print(sentiment_loss)
-        print(persona_loss)
-
+        print(neg) 
+        print(neu) 
+        print(pos) 
+        
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())
         persona_losses.append(np.array(persona_loss).mean())

@@ -161,7 +161,7 @@ if __name__ == '__main__':
 
     losses = []
     accuracies = []
-    correct = []
+    correct =[]
 
 
 
@@ -172,6 +172,9 @@ if __name__ == '__main__':
         loss = []
         accuracy = []
         cor = 0
+        pos = 0 
+        neu = 0 
+        neg = 0
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -218,7 +221,7 @@ if __name__ == '__main__':
             if args.tensorboard:
                 writer.close() 
 
-            loss.append(best_loss)
+            loss.append(round(best_loss, 3))
 
             if not args.regression:
                 best_pred = list(itertools.chain.from_iterable(best_pred))
@@ -227,10 +230,16 @@ if __name__ == '__main__':
 
                 accuracy.append(round(accuracy_score(best_label, best_pred), 3))
                 cor += accuracy_score(best_label, best_pred, normalize=False) 
+                neg += confusion_matrix(best_label, best_pred)[0][0]
+                neu += confusion_matrix(best_label, best_pred)[1][1] 
+                pos += confusion_matrix(best_label, best_pred)[2][2]
 
 
-        print(accuracy)
-        print(loss)
+
+        print(neg)
+        print(neu) 
+        print(pos) 
+
         losses.append(np.array(loss).mean())
 
 

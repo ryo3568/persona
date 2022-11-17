@@ -154,14 +154,12 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     losses = []
-    sep_losses = []
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
-        sep_loss = []
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -204,14 +202,11 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
-            
-            for i in range(5):
-                sep_loss[i] += best_sep_loss[i]
+        
 
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
-        for i in range(5):
-            sep_loss[i] /= len(loss)
+
         print(loss)
 
         losses.append(np.array(loss).mean())
