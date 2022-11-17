@@ -63,7 +63,7 @@ class HazumiDataset(Dataset):
         return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor([persona[vid][0]]),\
+            torch.FloatTensor(persona[vid]),\
             torch.FloatTensor(sentiment[vid]),\
             torch.LongTensor(s_ternary[vid]),\
             vid

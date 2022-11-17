@@ -8,10 +8,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel, biLSTMModel
+from model import LSTMSentimentModel, biLSTMSentimentModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -50,10 +50,10 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_worke
 
 
 def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False, rate=1.0):
-    losses = []
-    preds = [] 
-    labels = []
-    separate_loss = []
+    sentiment_losses = []
+    pred_sentiments = [] 
+    y_sentiments = []
+    time_loss = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -71,36 +71,47 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         data = torch.cat((text, visual, audio), dim=-1)
 
         if not train:
-            seq_len = int(rate*data.shape[1])
-            data = data[:, :seq_len, :]
+            for i in range(text.size()[1]):
+                pred = model(data[:, :i+1, :])
+                pred = pred.view(-1, 3)
+                y_sentiment = s_ternary.view(-1)
+                loss = loss_function(pred, y_sentiment[:i+1])
+                time_loss.append(round(loss.item(),3))
             
         
-        pred = model(data)
+        pred_sentiment = model(data)
 
-        loss = loss_function(pred, persona)
+        if not args.regression:
+            s_ternary = s_ternary.view(-1)
+            y_sentiment = s_ternary
+            pred_sentiment = pred_sentiment.view(-1, 3)
+        else:
+            sentiment = sentiment.view(text.shape[0], -1, 1)
+            y_sentiment = sentiment
 
-        for i in range(5):
-            tmp_loss = round(loss_function(pred[:, i], persona[:, i]).item(), 3)
-            separate_loss.append(tmp_loss)
-        
+
+        loss_sentiment = loss_function(pred_sentiment, y_sentiment)
+
+        if not args.regression:
+            pred_sentiment = torch.argmax(pred_sentiment, dim=1)
 
         # 学習ログ
-        losses.append(loss.item())
-        preds.append(pred.data.cpu().numpy())
-        labels.append(persona.data.cpu().numpy())
+        sentiment_losses.append(loss_sentiment.item())
+        pred_sentiments.append(pred_sentiment.data.cpu().numpy())
+        y_sentiments.append(y_sentiment.data.cpu().numpy())
 
 
         if train:
-            loss.backward()
+            loss_sentiment.backward()
             if args.tensorboard:
                 for param in model.named_parameters():
                     writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
 
 
-    avg_loss = round(np.sum(losses)/len(losses), 4)
+    avg_sentiment_loss = round(np.sum(sentiment_losses)/len(sentiment_losses), 4)
 
-    return avg_loss, preds, labels, separate_loss
+    return avg_sentiment_loss, pred_sentiments, y_sentiments, time_loss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -115,9 +126,9 @@ if __name__ == '__main__':
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
 
     # 追加
-    parser.add_argument('--pretrained', action='store_true', default=False, help='use pretrained parameter')
     parser.add_argument('--rate', type=float, default=1.0, help='number of sequence length')
     parser.add_argument('--iter', type=int, default=5, help='number of experiments')
+    parser.add_argument('--save_model', action='store_true', default=False, help='save pretrained model parameter')
     parser.add_argument('--regression', action='store_true', default=False, help='estimating sentiment with regression model')
     parser.add_argument('--persona_first_annot', action='store_true', default=False, help='using persona label annotated by user')
     parser.add_argument('--sentiment_first_annot', action='store_true', default=False, help='using sentiment label annotated by user')
@@ -154,22 +165,26 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     losses = []
-    sep_losses = []
+    accuracies = []
+    correct = []
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
-        sep_loss = []
+        accuracy = []
+        cor = 0
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
-            loss_function = nn.MSELoss()
+            if not args.regression:
+                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                loss_function = nn.CrossEntropyLoss() 
+            else:
+                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                loss_function = nn.MSELoss()
 
-            if args.pretrained:
-                model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
 
                         
             if cuda:
@@ -179,19 +194,19 @@ if __name__ == '__main__':
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_loss, best_label, best_pred= None, None, None
+            best_loss, best_label, best_pred, best_model = None, None, None, None
 
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                trn_loss, _, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                trn_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
                 val_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-                tst_loss, tst_pred, tst_label, tst_sep_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+                tst_loss, tst_pred, tst_label, time_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
 
 
                 if best_loss == None or best_loss > tst_loss:
-                    best_loss, best_label, best_pred, best_sep_loss = \
-                    tst_loss, tst_label, tst_pred, tst_sep_loss
+                    best_loss, best_label, best_pred, best_model, best_time_loss = \
+                    tst_loss, tst_label, tst_pred, model.state_dict(), time_loss
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_loss, epoch) 
@@ -200,23 +215,34 @@ if __name__ == '__main__':
                 # if es(val_persona_loss):
                 #     break
 
+            print(best_time_loss)
+
+            if args.save_model:
+                torch.save(best_model, f'../data/model/{testfile}.pt')
+
             if args.tensorboard:
                 writer.close() 
 
             loss.append(best_loss)
-            
-            for i in range(5):
-                sep_loss[i] += best_sep_loss[i]
+
+            if not args.regression:
+                best_pred = list(itertools.chain.from_iterable(best_pred))
+                best_label = list(itertools.chain.from_iterable(best_label))          
 
 
-            # best_pred = list(itertools.chain.from_iterable(best_pred))
-        for i in range(5):
-            sep_loss[i] /= len(loss)
-        print(loss)
-
+                accuracy.append(accuracy_score(best_label, best_pred))
+                cor += accuracy_score(best_label, best_pred, normalize=False)
+                
         losses.append(np.array(loss).mean())
+
+        if not args.regression:
+            accuracies.append(np.array(accuracy).mean())
+            correct.append(cor)
+            
 
 
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
-    print(losses)
+    if not args.regression:
+        print(f'正解率： {np.array(accuracies).mean():.3f}')
+        print(f'正解数： {correct} / 2439')

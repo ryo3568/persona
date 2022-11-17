@@ -3,7 +3,7 @@ import argparse, time, pickle
 import os
 import glob
 from tqdm import tqdm
-import itertools 
+from itertools import chain
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel, biLSTMModel
+from model import BiLSTMEncoder, SelfAttentionClassifier
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -55,10 +55,13 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     labels = []
     separate_loss = []
     assert not train or optimizer!=None 
+    encoder, estimator = model
     if train:
-        model.train() 
+        encoder.train() 
+        estimator.train()
     else:
-        model.eval() 
+        encoder.train() 
+        estimator.train() 
     for data in dataloader:
         if train:
             optimizer.zero_grad() 
@@ -75,7 +78,8 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             data = data[:, :seq_len, :]
             
         
-        pred = model(data)
+        out = encoder(data) 
+        pred, attn = estimator(out)
 
         loss = loss_function(pred, persona)
 
@@ -161,21 +165,27 @@ if __name__ == '__main__':
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
-        sep_loss = []
+
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
+            encoder = BiLSTMEncoder(D_i, D_h).cuda()
+            estimator = SelfAttentionClassifier(D_h, D_h, D_o, 5).cuda()
+
+            model = (encoder, estimator)
+
+            # model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
             loss_function = nn.MSELoss()
 
-            if args.pretrained:
-                model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
+            # if args.pretrained:
+            #     model.load_state_dict(torch.load(f'../data/model/{testfile}.pt'), strict=False)
 
                         
-            if cuda:
-                model.cuda()
+            # if cuda:
+            #     model.cuda()
 
-            optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+            # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+            optimizer = optim.Adam(chain(encoder.parameters(), estimator.parameters()), lr=args.lr)
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
@@ -204,14 +214,10 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
-            
-            for i in range(5):
-                sep_loss[i] += best_sep_loss[i]
+    
 
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
-        for i in range(5):
-            sep_loss[i] /= len(loss)
         print(loss)
 
         losses.append(np.array(loss).mean())

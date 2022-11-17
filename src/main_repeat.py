@@ -53,7 +53,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     losses = []
     preds = [] 
     labels = []
-    separate_loss = []
+    test_loss = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -70,18 +70,18 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         # data = torch.cat((visual, audio), dim=-1)
         data = torch.cat((text, visual, audio), dim=-1)
 
+
         if not train:
-            seq_len = int(rate*data.shape[1])
-            data = data[:, :seq_len, :]
+            for i in range(text.size()[1]):
+                pred = model(data[:, :i+1, :])
+                loss = loss_function(pred, persona)
+                test_loss.append(round(loss.item(),3))
+
             
         
         pred = model(data)
 
         loss = loss_function(pred, persona)
-
-        for i in range(5):
-            tmp_loss = round(loss_function(pred[:, i], persona[:, i]).item(), 3)
-            separate_loss.append(tmp_loss)
         
 
         # 学習ログ
@@ -100,7 +100,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
     avg_loss = round(np.sum(losses)/len(losses), 4)
 
-    return avg_loss, preds, labels, separate_loss
+    return avg_loss, preds, labels, test_loss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -154,14 +154,12 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     losses = []
-    sep_losses = []
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
-        sep_loss = []
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -179,39 +177,37 @@ if __name__ == '__main__':
 
             train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=batch_size, valid=0.1, args=args) 
 
-            best_loss, best_label, best_pred= None, None, None
+            best_loss, best_label, best_pred, best_time_loss= None, None, None, None
 
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                trn_loss, _, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                trn_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
                 val_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-                tst_loss, tst_pred, tst_label, tst_sep_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
-
+                tst_loss, tst_pred, tst_label, time_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+            
 
                 if best_loss == None or best_loss > tst_loss:
-                    best_loss, best_label, best_pred, best_sep_loss = \
-                    tst_loss, tst_label, tst_pred, tst_sep_loss
+                    best_loss, best_label, best_pred, best_time_loss = \
+                    tst_loss, tst_label, tst_pred, time_loss
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_loss, epoch) 
                     writer.add_scalar('train: loss', trn_loss, epoch) 
+
                 
                 # if es(val_persona_loss):
                 #     break
+
+            print(best_time_loss)
 
             if args.tensorboard:
                 writer.close() 
 
             loss.append(best_loss)
-            
-            for i in range(5):
-                sep_loss[i] += best_sep_loss[i]
 
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
-        for i in range(5):
-            sep_loss[i] /= len(loss)
         print(loss)
 
         losses.append(np.array(loss).mean())
