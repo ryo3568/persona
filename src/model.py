@@ -198,15 +198,20 @@ class SelfAttentionMultiClassifier(nn.Module):
         self.lstm_dim = lstm_dim 
         self.r = r 
         self.attn = SelfAttention(lstm_dim, da, r) 
+        self.dropout = nn.Dropout(0.25)
         self.sentiment = nn.Linear(lstm_dim * 2, 3) 
         self.persona = nn.Linear(lstm_dim * 2, 5)
+        self.linear = nn.Linear(lstm_dim * 2, lstm_dim * 2)
 
     def forward(self, out):
-        attention_weight = self.attn(out) 
-        m_persona = (out * attention_weight[:, :, 0].unsqueeze(2)).sum(dim=1)
+        h_sentiment = F.relu(self.linear(out))
+        h_sentiment = self.dropout(h_sentiment)
+        y_sentiment = self.sentiment(h_sentiment)
+        attention_weight = self.attn(y_sentiment) 
+        y_persona = (out * attention_weight[:, :, 0].unsqueeze(2)).sum(dim=1)
 
 
-        return self.persona(m_persona), self.sentiment(out)
+        return self.persona(y_persona), y_sentiment
 
 
 

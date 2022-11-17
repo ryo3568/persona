@@ -163,6 +163,8 @@ if __name__ == '__main__':
     accuracies = []
     correct = []
 
+
+
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
@@ -223,10 +225,14 @@ if __name__ == '__main__':
                 best_label = list(itertools.chain.from_iterable(best_label))          
 
 
-                accuracy.append(accuracy_score(best_label, best_pred))
-                cor += accuracy_score(best_label, best_pred, normalize=False)
-                
+                accuracy.append(round(accuracy_score(best_label, best_pred), 3))
+                cor += accuracy_score(best_label, best_pred, normalize=False) 
+
+
+        print(accuracy)
+        print(loss)
         losses.append(np.array(loss).mean())
+
 
         if not args.regression:
             accuracies.append(np.array(accuracy).mean())

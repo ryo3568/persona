@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMMultiTaskModel, biLSTMMultiTaskModel
@@ -261,8 +261,13 @@ if __name__ == '__main__':
 
                 accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
 
+
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
+
+        print(accuracy)
+        print(sentiment_loss)
+        print(persona_loss)
 
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())
