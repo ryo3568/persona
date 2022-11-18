@@ -79,6 +79,13 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
         loss = loss_function(pred, persona)
 
+        separate_loss.append(loss_function(pred[:, 0], persona[:, 0]))
+        separate_loss.append(loss_function(pred[:, 1], persona[:, 1]))
+        separate_loss.append(loss_function(pred[:, 2], persona[:, 2]))
+        separate_loss.append(loss_function(pred[:, 3], persona[:, 3]))
+        separate_loss.append(loss_function(pred[:, 4], persona[:, 4]))
+        
+
         for i in range(5):
             tmp_loss = round(loss_function(pred[:, i], persona[:, i]).item(), 3)
             separate_loss.append(tmp_loss)
@@ -154,12 +161,23 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     losses = []
+    extr_losses = []
+    agre_losses = [] 
+    cons_losses = [] 
+    neur_losses = [] 
+    open_losses = []
+
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
+        extr_loss = [] 
+        agre_loss = [] 
+        cons_loss = [] 
+        neur_loss = [] 
+        open_loss = [] 
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -202,12 +220,22 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
-        
 
+            extr_loss.append(best_sep_loss[0])
+            agre_loss.append(best_sep_loss[1])
+            cons_loss.append(best_sep_loss[2])
+            neur_loss.append(best_sep_loss[3]) 
+            open_loss.append(best_sep_loss[4])
+        
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
 
         print(loss)
+        print(np.array(extr_loss).mean())
+        print(np.array(agre_loss).mean())
+        print(np.array(cons_loss).mean())
+        print(np.array(neur_loss).mean())
+        print(np.array(open_loss).mean())
 
         losses.append(np.array(loss).mean())
 

@@ -232,8 +232,11 @@ if __name__ == '__main__':
                 cor += accuracy_score(best_label, best_pred, normalize=False) 
                 if len(confusion_matrix(best_label, best_pred)) == 3:
                     neg += confusion_matrix(best_label, best_pred)[0][0]
-                neu += confusion_matrix(best_label, best_pred)[1][1] 
-                pos += confusion_matrix(best_label, best_pred)[2][2]
+                    neu += confusion_matrix(best_label, best_pred)[1][1] 
+                    pos += confusion_matrix(best_label, best_pred)[2][2]
+                else:
+                    neu += confusion_matrix(best_label, best_pred)[0][0] 
+                    pos += confusion_matrix(best_label, best_pred)[1][1]                   
 
 
 
@@ -252,6 +255,7 @@ if __name__ == '__main__':
 
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
+    print(accuracy)
     if not args.regression:
         print(f'正解率： {np.array(accuracies).mean():.3f}')
         print(f'正解数： {correct} / 2439')
