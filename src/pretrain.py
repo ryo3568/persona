@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMSentimentModel, biLSTMSentimentModel
@@ -228,9 +228,10 @@ if __name__ == '__main__':
                 best_label = list(itertools.chain.from_iterable(best_label))          
 
 
-                accuracy.append(round(accuracy_score(best_label, best_pred), 3))
+                accuracy.append(round(balanced_accuracy_score(best_label, best_pred), 3))
                 cor += accuracy_score(best_label, best_pred, normalize=False) 
-                neg += confusion_matrix(best_label, best_pred)[0][0]
+                if len(confusion_matrix(best_label, best_pred)) == 3:
+                    neg += confusion_matrix(best_label, best_pred)[0][0]
                 neu += confusion_matrix(best_label, best_pred)[1][1] 
                 pos += confusion_matrix(best_label, best_pred)[2][2]
 
