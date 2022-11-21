@@ -207,9 +207,9 @@ if __name__ == '__main__':
         neur_loss = [] 
         open_loss = [] 
 
-        pos = 0 
-        neu = 0 
-        neg = 0
+        pos = []
+        neu = []
+        neg = []
 
 
         for testfile in tqdm(testfiles, position=0, leave=True):
@@ -279,32 +279,28 @@ if __name__ == '__main__':
 
             if not args.regression:
                 best_sentiment_pred = list(itertools.chain.from_iterable(best_sentiment_pred))
-                best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label)) 
-
-                accuracy.append(accuracy_score(best_sentiment_label, best_sentiment_pred))  
-
-                neg += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0]
-                neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1] 
-                pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]       
+                best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label))     
 
 
                 accuracy.append(round(balanced_accuracy_score(best_sentiment_label, best_sentiment_pred), 3))
 
-                if len(confusion_matrix(best_sentiment_label, best_sentiment_pred)) == 3:
-                    neg += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0]
-                    neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1] 
-                    pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]
+                matrix = confusion_matrix(best_sentiment_label, best_sentiment_pred)
+                tmp = matrix.sum(axis=1)
+                if len(matrix) == 3:
+                    neg.append(matrix[0][0] / tmp[0])
+                    neu.append(matrix[1][1] / tmp[1])
+                    pos.append(matrix[2][2] / tmp[2])
                 else:
-                    neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0] 
-                    pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1]         
+                    neu.append(matrix[0][0] / tmp[0])
+                    pos.append(matrix[1][1] / tmp[1])              
 
 
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
-        print(f'低群：{neg}') 
-        print(f'中群：{neu}') 
-        print(f'高群：{pos}') 
+        print(f'低群：{np.array(neg).mean()}') 
+        print(f'中群：{np.array(neu).mean()}') 
+        print(f'高群：{np.array(pos).mean()}')
 
         print(np.array(extr_loss).mean())
         print(np.array(agre_loss).mean())
