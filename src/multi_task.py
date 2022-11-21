@@ -214,6 +214,7 @@ if __name__ == '__main__':
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
+
             if not args.regression:
 
                 model = LSTMMultiTaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
@@ -282,7 +283,7 @@ if __name__ == '__main__':
                 best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label))     
 
 
-                accuracy.append(round(balanced_accuracy_score(best_sentiment_label, best_sentiment_pred), 3))
+                accuracy.append(balanced_accuracy_score(best_sentiment_label, best_sentiment_pred))
 
                 matrix = confusion_matrix(best_sentiment_label, best_sentiment_pred)
                 tmp = matrix.sum(axis=1)
@@ -292,15 +293,15 @@ if __name__ == '__main__':
                     pos.append(matrix[2][2] / tmp[2])
                 else:
                     neu.append(matrix[0][0] / tmp[0])
-                    pos.append(matrix[1][1] / tmp[1])              
+                    pos.append(matrix[1][1] / tmp[1]) 
 
 
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
-        print(f'低群：{np.array(neg).mean()}') 
-        print(f'中群：{np.array(neu).mean()}') 
-        print(f'高群：{np.array(pos).mean()}')
+        print(f'低群：{np.nanmean(neg)}') 
+        print(f'中群：{np.nanmean(neu)}') 
+        print(f'高群：{np.nanmean(pos)}')
 
         print(np.array(extr_loss).mean())
         print(np.array(agre_loss).mean())

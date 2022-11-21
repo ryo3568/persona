@@ -2,6 +2,7 @@ import numpy as np
 import argparse, time, pickle
 import os
 import glob
+import csv
 from tqdm import tqdm
 import itertools
 import torch
@@ -254,8 +255,13 @@ if __name__ == '__main__':
                 # if es(val_persona_loss):
                 #     break
 
-            print(best_time_persona_loss)
-            print(best_time_sentiment_loss)
+            # print(best_time_persona_loss)
+            # print(best_time_sentiment_loss)
+
+            with open(f'../data/results/{testfile}_multi.csv', 'w') as f:
+                writer = csv.writer(f) 
+                writer.writerow(best_time_persona_loss)
+                writer.writerow(best_time_sentiment_loss)
 
 
             if args.tensorboard:

@@ -179,10 +179,10 @@ if __name__ == '__main__':
         for testfile in tqdm(testfiles, position=0, leave=True):
 
             if not args.regression:
-                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
                 loss_function = nn.CrossEntropyLoss() 
             else:
-                model = biLSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
+                model = LSTMSentimentModel(D_i, D_h, D_o,n_classes=1, dropout=args.dropout)
                 loss_function = nn.MSELoss()
 
 
@@ -228,7 +228,7 @@ if __name__ == '__main__':
                 best_label = list(itertools.chain.from_iterable(best_label))          
 
 
-                accuracy.append(round(balanced_accuracy_score(best_label, best_pred), 3))
+                accuracy.append(balanced_accuracy_score(best_label, best_pred))
                 cor += accuracy_score(best_label, best_pred, normalize=False) 
                 if len(confusion_matrix(best_label, best_pred)) == 3:
                     neg += confusion_matrix(best_label, best_pred)[0][0]
