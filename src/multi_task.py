@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMMultiTaskModel, biLSTMMultiTaskModel
@@ -285,7 +285,18 @@ if __name__ == '__main__':
 
                 neg += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0]
                 neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1] 
-                pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]          
+                pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]       
+
+
+                accuracy.append(round(balanced_accuracy_score(best_sentiment_label, best_sentiment_pred), 3))
+
+                if len(confusion_matrix(best_sentiment_label, best_sentiment_pred)) == 3:
+                    neg += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0]
+                    neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1] 
+                    pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[2][2]
+                else:
+                    neu += confusion_matrix(best_sentiment_label, best_sentiment_pred)[0][0] 
+                    pos += confusion_matrix(best_sentiment_label, best_sentiment_pred)[1][1]         
 
 
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
