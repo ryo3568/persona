@@ -57,6 +57,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
     pred_sentiments = [] 
     y_personas = []
     y_sentiments = []
+    separate_loss = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -93,6 +94,11 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         loss_persona = loss_function1(pred_persona, persona)
 
         loss_sentiment = loss_function2(pred_sentiment, y_sentiment)
+
+        if not train:
+            for i in range(5):
+                tmp_loss = round(loss_function1(pred_persona[:, i], persona[:, i]).item(), 3)
+                separate_loss.append(tmp_loss)
         
         loss = loss_persona + loss_sentiment
 
@@ -129,7 +135,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
     avg_persona_loss = round(np.sum(persona_losses)/len(persona_losses), 4)
     avg_sentiment_loss = round(np.sum(sentiment_losses)/len(sentiment_losses), 4)
 
-    return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments
+    return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments, separate_loss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -195,6 +201,12 @@ if __name__ == '__main__':
         persona_loss = []
         accuracy = []
 
+        extr_loss = [] 
+        agre_loss = [] 
+        cons_loss = [] 
+        neur_loss = [] 
+        open_loss = [] 
+
         pos = 0 
         neu = 0 
         neg = 0
@@ -227,15 +239,15 @@ if __name__ == '__main__':
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                trn_persona_loss, trn_sentiment_loss, _, _, _, _, _= train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True)
-                val_persona_loss, val_sentiment_loss, _, _, _, _, _= train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch)
+                trn_persona_loss, trn_sentiment_loss, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True)
+                val_persona_loss, val_sentiment_loss, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch)
                 tst_all_loss, tst_persona_loss, tst_sentiment_loss, tst_persona_pred, tst_sentiment_pred, \
-                tst_persona_label, tst_sentiment_label = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
+                tst_persona_label, tst_sentiment_label, tst_persona_sep_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
 
 
                 if best_all_loss == None or best_all_loss > tst_all_loss:
-                    best_persona_loss, best_persona_label, best_persona_pred = \
-                    tst_persona_loss, tst_persona_label, tst_persona_pred
+                    best_persona_loss, best_persona_label, best_persona_pred, best_persona_sep_loss = \
+                    tst_persona_loss, tst_persona_label, tst_persona_pred, tst_persona_sep_loss
 
                     best_sentiment_loss, best_sentiment_label, best_sentiment_pred = \
                     tst_sentiment_loss, tst_sentiment_label, tst_sentiment_pred
@@ -259,6 +271,12 @@ if __name__ == '__main__':
             sentiment_loss.append(best_sentiment_loss)
             persona_loss.append(best_persona_loss)
 
+            extr_loss.append(best_persona_sep_loss[0])
+            agre_loss.append(best_persona_sep_loss[1])
+            cons_loss.append(best_persona_sep_loss[2])
+            neur_loss.append(best_persona_sep_loss[3]) 
+            open_loss.append(best_persona_sep_loss[4])
+
             if not args.regression:
                 best_sentiment_pred = list(itertools.chain.from_iterable(best_sentiment_pred))
                 best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label)) 
@@ -273,9 +291,15 @@ if __name__ == '__main__':
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
-        print(neg) 
-        print(neu) 
-        print(pos) 
+        print(f'低群：{neg}') 
+        print(f'中群：{neu}') 
+        print(f'高群：{pos}') 
+
+        print(np.array(extr_loss).mean())
+        print(np.array(agre_loss).mean())
+        print(np.array(cons_loss).mean())
+        print(np.array(neur_loss).mean())
+        print(np.array(open_loss).mean())
         
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())

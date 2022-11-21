@@ -78,17 +78,11 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         pred = model(data)
 
         loss = loss_function(pred, persona)
-
-        separate_loss.append(loss_function(pred[:, 0], persona[:, 0]))
-        separate_loss.append(loss_function(pred[:, 1], persona[:, 1]))
-        separate_loss.append(loss_function(pred[:, 2], persona[:, 2]))
-        separate_loss.append(loss_function(pred[:, 3], persona[:, 3]))
-        separate_loss.append(loss_function(pred[:, 4], persona[:, 4]))
         
-
-        for i in range(5):
-            tmp_loss = round(loss_function(pred[:, i], persona[:, i]).item(), 3)
-            separate_loss.append(tmp_loss)
+        if not train:
+            for i in range(5):
+                tmp_loss = round(loss_function(pred[:, i], persona[:, i]).item(), 3)
+                separate_loss.append(tmp_loss)
         
 
         # 学習ログ
