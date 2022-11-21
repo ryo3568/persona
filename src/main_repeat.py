@@ -155,12 +155,16 @@ if __name__ == '__main__':
     testfiles = sorted(testfiles)
 
     losses = []
+    time_losses = []
 
     for i in range(args.iter):
 
         print(f'Iteration {i+1} / {args.iter}')
 
         loss = []
+        time_loss = []
+        ave_time_loss = [] 
+        std_time_loss = [] 
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -201,7 +205,10 @@ if __name__ == '__main__':
                 #     break
 
             # print(best_time_loss)
-            with open(f'../data/results/{testfile}_single.csv', 'w') as f:
+            dir = f'../data/results/{testfile}/'
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+            with open(dir+'single.csv', 'w') as f:
                 writer = csv.writer(f) 
                 writer.writerow(best_time_loss)
 
@@ -209,10 +216,19 @@ if __name__ == '__main__':
                 writer.close() 
 
             loss.append(best_loss)
+            time_loss.append(best_time_loss)
+            ave_time_loss.append(np.mean(best_time_loss)) 
+            std_time_loss.append(np.std(best_time_loss))
 
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
-        print(loss)
+        print(f'損失：{loss}')
+        print("======リアルタイム推定結果======")
+        print(f'平均：{np.mean(ave_time_loss)}')
+        print(ave_time_loss)
+        print(f'標準偏差：{np.mean(std_time_loss)}')
+        print(std_time_loss)
+
 
         losses.append(np.array(loss).mean())
 

@@ -204,6 +204,8 @@ if __name__ == '__main__':
         persona_loss = []
         accuracy = []
         multi = []
+        ave_time_loss = [] 
+        std_time_loss = [] 
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -258,7 +260,10 @@ if __name__ == '__main__':
             # print(best_time_persona_loss)
             # print(best_time_sentiment_loss)
 
-            with open(f'../data/results/{testfile}_multi.csv', 'w') as f:
+            dir = f'../data/results/{testfile}/'
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+            with open(dir + 'multi.csv', 'w') as f:
                 writer = csv.writer(f) 
                 writer.writerow(best_time_persona_loss)
                 writer.writerow(best_time_sentiment_loss)
@@ -272,6 +277,10 @@ if __name__ == '__main__':
             sentiment_loss.append(best_sentiment_loss)
             persona_loss.append(best_persona_loss)
 
+            ave_time_loss.append(np.mean(best_time_persona_loss))
+            std_time_loss.append(np.std(best_time_persona_loss))
+
+
             if not args.regression:
                 best_sentiment_pred = list(itertools.chain.from_iterable(best_sentiment_pred))
                 best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label)) 
@@ -284,6 +293,12 @@ if __name__ == '__main__':
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())
         persona_losses.append(np.array(persona_loss).mean())
+
+        print("======リアルタイム推定結果======")
+        print(f'平均：{np.mean(ave_time_loss)}')
+        print(ave_time_loss)
+        print(f'標準偏差：{np.mean(std_time_loss)}')       
+        print(std_time_loss)
 
         if not args.regression:
             accuracies.append(np.array(accuracy).mean())
