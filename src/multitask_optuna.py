@@ -119,6 +119,7 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_worke
 
 def train_or_eval_model(model, loss_function1, loss_function2, dataloader, optimizer=None, train=False, device=None, alpha=None):
     losses = []
+    per_losses = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -148,12 +149,14 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, optim
         loss = alpha * loss_per + (1-alpha) * loss_sen
         # 学習ログ
         losses.append(loss.item())
+        per_losses.append(loss_per.item())
 
         if train:
             loss.backward()
             optimizer.step() 
 
-    avg_loss = round(np.sum(losses)/len(losses), 4)
+    # avg_loss = round(np.sum(losses)/len(losses), 4)
+    avg_loss = round(np.sum(per_losses)/len(per_losses), 4)
 
     return avg_loss 
 

@@ -178,8 +178,8 @@ if __name__ == '__main__':
     n_classes = 5
 
     D_i = 3063
-    D_h = 100 
-    D_o = 100
+    D_h = 100
+    D_o = 32
 
     testfiles = []
     for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
