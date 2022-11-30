@@ -18,7 +18,6 @@ class HazumiDataset(Dataset):
     
         path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
-
         self.SS_ternary, self.TS_ternary, self.sentiment, self.third_sentiment, self.persona, self.third_persona,\
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
@@ -30,16 +29,14 @@ class HazumiDataset(Dataset):
             for x in self.vid:
                 if x != test_file:
                     self.keys.append(x) 
-            self.scaler_text = Standardizing()
             self.scaler_audio = Standardizing()
             self.scaler_visual = Standardizing()
-            self.scaler_text.fit(self.text, self.keys)
             self.scaler_audio.fit(self.audio, self.keys)
             self.scaler_visual.fit(self.visual, self.keys)
-            self.scaler = (self.scaler_text, self.scaler_audio, self.scaler_visual)
+            self.scaler = (self.scaler_audio, self.scaler_visual)
         else:
             self.keys.append(test_file)
-            self.scaler_text, self.scaler_audio, self.scaler_visual = scaler 
+            self.scaler_audio, self.scaler_visual = scaler 
 
         self.len = len(self.keys) 
 
@@ -60,7 +57,7 @@ class HazumiDataset(Dataset):
             persona = self.third_persona
 
         
-        return torch.FloatTensor(self.scaler_text.transform(self.text[vid])),\
+        return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
             torch.FloatTensor(persona[vid]),\
@@ -74,4 +71,6 @@ class HazumiDataset(Dataset):
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
         return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
+
+
 

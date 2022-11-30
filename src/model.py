@@ -161,6 +161,8 @@ class BiLSTMEncoder(nn.Module):
         out, _ = self.bilstm(x)
         return out 
 
+
+
 class SelfAttention(nn.Module):
     def __init__(self, lstm_dim, da, r):
         super(SelfAttention, self).__init__() 

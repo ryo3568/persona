@@ -4,16 +4,18 @@ import os
 import glob
 from tqdm import tqdm
 import itertools 
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt 
-from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel, biLSTMModel
+
+import matplotlib.pyplot as plt 
+from sklearn.metrics import classification_report, accuracy_score
+
+from model import LSTMModel
 from dataloader import HazumiDataset
-from utils.EarlyStopping import EarlyStopping
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -220,6 +222,8 @@ if __name__ == '__main__':
             cons_loss.append(best_sep_loss[2])
             neur_loss.append(best_sep_loss[3]) 
             open_loss.append(best_sep_loss[4])
+
+            print(best_pred)
         
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
