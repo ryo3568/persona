@@ -56,8 +56,6 @@ class biLSTMModel(nn.Module):
         return y
 
 
-
-
 class LSTMSentimentModel(nn.Module):
 
     def __init__(self, D_i, D_h, D_o, n_classes=5, dropout=0.5):
@@ -150,70 +148,44 @@ class biLSTMMultiTaskModel(nn.Module):
 
         return y_persona, y_sentiment
 
+class FNNModel(nn.Module):
 
-class BiLSTMEncoder(nn.Module):
-    def __init__(self, input_size, lstm_dim):
-        super(BiLSTMEncoder, self).__init__() 
-        self.lstm_dim = lstm_dim
-        self.bilstm = nn.LSTM(input_size, lstm_dim, batch_first=True, bidirectional=True)
+    def __init__(self, D_i, D_h, D_o, n_classes = 5, dropout=0.5):
+        super(FNNModel, self).__init__() 
+        self.fc1 = nn.Linear(D_i, D_h) 
+        self.fc2 = nn.Linear(D_h, D_o) 
+        self.fc3 = nn.Linear(D_o, n_classes)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        out, _ = self.bilstm(x)
-        return out 
+        h  = F.relu(self.fc1(x)) 
+        h = self.dropout(h)
+        h = F.relu(self.fc2(h)) 
+        h = self.dropout(h)
+        y = self.fc3(h)
 
+        return y
 
+class FNNMultitaskModel(nn.Module):
 
-class SelfAttention(nn.Module):
-    def __init__(self, lstm_dim, da, r):
-        super(SelfAttention, self).__init__() 
-        self.lstm_dim = lstm_dim 
-        self.da = da 
-        self.r = r 
-        self.main = nn.Sequential(
-            nn.Linear(lstm_dim * 2, da), 
-            nn.Tanh(),
-            nn.Linear(da, r)
-        )
-    
-    def forward(self, out):
-        return F.softmax(self.main(out), dim=1)
+    def __init__(self, D_i, D_h, D_o, n_classes = 5, dropout=0.5):
+        super(FNNMultitaskModel, self).__init__() 
+        self.fc1 = nn.Linear(D_i, D_h) 
+        self.fc2 = nn.Linear(D_h, D_o) 
+        self.fc_persona = nn.Linear(D_o, 5)
+        self.fc_sentiment = nn.Linear(D_o, 3)
+        self.dropout = nn.Dropout(dropout)
 
-class SelfAttentionClassifier(nn.Module):
-    def __init__(self, lstm_dim, da, r, target_size):
-        super(SelfAttentionClassifier, self).__init__() 
-        self.lstm_dim = lstm_dim 
-        self.r = r 
-        self.attn = SelfAttention(lstm_dim, da, r) 
-        self.main = nn.Linear(lstm_dim * 6, target_size) 
+    def forward(self, x):
+        h  = F.relu(self.fc1(x)) 
+        h = self.dropout(h)
+        h = F.relu(self.fc2(h)) 
+        h = self.dropout(h)
+        y_persona = self.fc_persona(h) 
+        y_sentiment = self.fc_sentiment(h)
 
-    def forward(self, out):
-        attention_weight = self.attn(out) 
-        m1 = (out * attention_weight[:, :, 0].unsqueeze(2)).sum(dim=1) 
-        m2 = (out * attention_weight[:, :, 1].unsqueeze(2)).sum(dim=1) 
-        m3 = (out * attention_weight[:, :, 2].unsqueeze(2)).sum(dim=1) 
-        feats = torch.cat([m1, m2, m3], dim=1)
-        return self.main(feats), attention_weight
+        return y_persona, y_sentiment
 
-class SelfAttentionMultiClassifier(nn.Module):
-    def __init__(self, lstm_dim, da, r):
-        super(SelfAttentionMultiClassifier, self).__init__() 
-        self.lstm_dim = lstm_dim 
-        self.r = r 
-        self.attn = SelfAttention(lstm_dim, da, r) 
-        self.dropout = nn.Dropout(0.25)
-        self.sentiment = nn.Linear(lstm_dim * 2, 3) 
-        self.persona = nn.Linear(lstm_dim * 2, 5)
-        self.linear = nn.Linear(lstm_dim * 2, lstm_dim * 2)
-
-    def forward(self, out):
-        h_sentiment = F.relu(self.linear(out))
-        h_sentiment = self.dropout(h_sentiment)
-        y_sentiment = self.sentiment(h_sentiment)
-        attention_weight = self.attn(y_sentiment) 
-        y_persona = (out * attention_weight[:, :, 0].unsqueeze(2)).sum(dim=1)
-
-
-        return self.persona(y_persona), y_sentiment
 
 
 

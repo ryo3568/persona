@@ -9,21 +9,19 @@ from utils.Standardizing import Standardizing
 
 class HazumiDataset(Dataset):
     """マルチタスク学習用データセット
-
+ 
     説明文
 
     """
 
-    def __init__(self, test_file, train=True, scaler=None, args=None):
+    def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features_bert.pkl'
 
         self.SS_ternary, self.TS_ternary, self.sentiment, self.third_sentiment, self.persona, self.third_persona,\
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
-
-        self.args = args
 
         if train:
             for x in self.vid:
@@ -43,26 +41,13 @@ class HazumiDataset(Dataset):
         
     def __getitem__(self, index):
         vid = self.keys[index] 
-
-        if self.args.sentiment_first_annot:
-            sentiment = self.sentiment
-            s_ternary = self.SS_ternary
-        else:
-            sentiment = self.third_sentiment
-            s_ternary = self.TS_ternary
-
-        if self.args.persona_first_annot:
-            persona = self.persona
-        else:
-            persona = self.third_persona
-
-        
+       
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor(persona[vid]),\
-            torch.FloatTensor(sentiment[vid]),\
-            torch.LongTensor(s_ternary[vid]),\
+            torch.FloatTensor(self.third_persona[vid]),\
+            torch.FloatTensor(self.third_sentiment[vid]),\
+            torch.LongTensor(self.TS_ternary[vid]),\
             vid
 
     def __len__(self):
@@ -71,6 +56,14 @@ class HazumiDataset(Dataset):
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
         return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
+
+
+
+
+
+
+
+
 
 
 

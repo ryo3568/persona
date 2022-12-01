@@ -117,7 +117,7 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, args=None, num_worke
 
     return train_loader, valid_loader, test_loader 
 
-def train_or_eval_model(model, loss_function1, loss_function2, dataloader, optimizer=None, train=False, device=None, alpha=None):
+def train_or_eval_model(model, loss_function1, loss_function2, dataloader, optimizer=None, train=False, device=None, alpha=1.0, beta=1.0):
     losses = []
     per_losses = []
     assert not train or optimizer!=None 
@@ -146,7 +146,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, optim
         loss_per = loss_function1(pred_per, persona) 
         loss_sen = loss_function2(pred_sen, y_sentiment)   
 
-        loss = alpha * loss_per + (1-alpha) * loss_sen
+        loss = alpha * loss_per + beta * loss_sen
         # 学習ログ
         losses.append(loss.item())
         per_losses.append(loss_per.item())
@@ -179,7 +179,8 @@ def objective(trial):
     D_h = int(trial.suggest_discrete_uniform("D_h", 50, 300, 50))
     D_o = int(trial.suggest_discrete_uniform("D_o", 10, 32, 2))
 
-    alpha = trial.suggest_discrete_uniform('alpha', 0.1, 0.9, 0.05)
+    alpha = trial.suggest_discrete_uniform('alpha', 0.1, 1.0, 0.05)
+    beta = trial.suggest_discrete_uniform('beta', 0.1, 1.0, 0.05)
 
     # drop-out rateの試行　
     in_droprate = trial.suggest_discrete_uniform("in_droprate", 0.0, 0.2, 0.05)
@@ -194,9 +195,9 @@ def objective(trial):
         best_loss = None 
 
         for epoch in range(EPOCH):
-            train_or_eval_model(model, loss_function1, loss_function2, train_loader, optimizer, True, device=device, alpha=alpha)
-            train_or_eval_model(model, loss_function1, loss_function2, valid_loader, device=device, alpha=alpha)
-            tst_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, device=device, alpha=alpha)
+            train_or_eval_model(model, loss_function1, loss_function2, train_loader, optimizer, True, device=device, alpha=alpha, beta=beta)
+            train_or_eval_model(model, loss_function1, loss_function2, valid_loader, device=device, alpha=alpha, beta=beta)
+            tst_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, device=device, alpha=alpha, beta=beta)
 
             if best_loss == None or best_loss > tst_loss:
                 best_loss = tst_loss 
@@ -210,7 +211,6 @@ if __name__ == '__main__':
     TRIAL_SIZE = 1
     BATCH_SIZE = 1
     EPOCH = 60 
-    N_CLASS = 5 
 
     # ハイパラチューニング
     study = optuna.create_study() 
