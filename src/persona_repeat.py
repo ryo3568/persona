@@ -76,15 +76,16 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             for i in range(text.size()[1]):
                 pred = model(data[:, :i+1, :])
                 # Model = Netの場合は有効にする
-                _persona = persona.repeat(1, i+1, 1) 
-                loss = loss_function(pred, _persona)
+                # _persona = persona.repeat(1, i+1, 1) 
+                # loss = loss_function(pred, _persona)
+                loss = loss_function(pred, persona)
                 test_loss.append(round(loss.item(),3))
 
             
         
         pred = model(data)
         # Model = Netの場合は有効にする
-        persona = persona.repeat(1, data.shape[1], 1) 
+        # persona = persona.repeat(1, data.shape[1], 1) 
 
         loss = loss_function(pred, persona)
         
@@ -146,8 +147,8 @@ if __name__ == '__main__':
     n_classes = 5
 
     D_i = 1218
-    D_h = 100 
-    D_o = 100
+    D_h = 256
+    D_o = 32
 
     testfiles = []
     for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
@@ -169,7 +170,7 @@ if __name__ == '__main__':
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            model = FNNModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
+            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
             loss_function = nn.MSELoss()
 
             if args.pretrained:
@@ -185,7 +186,9 @@ if __name__ == '__main__':
 
             best_loss, best_label, best_pred, best_time_loss= None, None, None, None
 
-            es = EarlyStopping(patience=10, verbose=1)
+            best_val_loss = None
+
+            # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
                 trn_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
@@ -193,17 +196,19 @@ if __name__ == '__main__':
                 tst_loss, tst_pred, tst_label, tst_time_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
             
 
-                if best_loss == None or best_loss > tst_loss:
+                if best_loss == None or best_val_loss > val_loss:
                     best_loss, best_label, best_pred, best_time_loss = \
                     tst_loss, tst_label, tst_pred, tst_time_loss
+
+                    best_val_loss = val_loss
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_loss, epoch) 
                     writer.add_scalar('train: loss', trn_loss, epoch) 
 
                 
-                if es(val_loss):
-                    break
+                # if es(val_loss):
+                #     break
 
 
             dir = f'../data/results/{testfile}/'

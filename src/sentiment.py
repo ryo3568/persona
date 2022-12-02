@@ -192,7 +192,7 @@ if __name__ == '__main__':
             for epoch in range(n_epochs):
                 trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
                 val_loss, _, _= train_or_eval_model(model, loss_function, valid_loader, epoch)
-                tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+                tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch)
 
 
                 if best_loss == None or best_loss > tst_loss:

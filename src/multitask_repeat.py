@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMMultiTaskModel, FNNMultitaskModel
+from model import LSTMMultitaskModel, FNNMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -87,16 +87,21 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         if not train:
             for i in range(text.size()[1]):
                 pred_persona, pred_sentiment = model(data[:, :i+1, :])
+
                 # Model = FNNMultitaskModelの場合は有効にする
-                _persona = persona.repeat(1, i+1, 1)
-                loss_persona = loss_function1(pred_persona, _persona)
+                # _persona = persona.repeat(1, i+1, 1)
+                # loss_persona = loss_function1(pred_persona, _persona)
+
+                # Model = LSTMMultitaskModelの場合は有効にする
+                loss_persona = loss_function1(pred_persona, persona)
+
                 pred_sentiment = pred_sentiment.view(-1, 3)
                 loss_sentiment = loss_function2(pred_sentiment, y_sentiment[:i+1])
                 time_persona_loss.append(round(loss_persona.item(),3))   
                 time_sentiment_loss.append(round(loss_sentiment.item(), 3))
 
         # Model = FNNMultitaskModelの場合は有効にする
-        persona = persona.repeat(1, data.shape[1], 1)
+        # persona = persona.repeat(1, data.shape[1], 1)
 
         loss_persona = loss_function1(pred_persona, persona)
 
@@ -167,7 +172,7 @@ if __name__ == '__main__':
     n_classes = 5
 
     D_i = 1218
-    D_h = 100 
+    D_h = 256
     D_o = 32
 
     testfiles = []
@@ -196,7 +201,7 @@ if __name__ == '__main__':
         for testfile in tqdm(testfiles, position=0, leave=True):
 
 
-            model = FNNMultitaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+            model = LSTMMultitaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
             loss_function1 = nn.MSELoss() # 性格特性
             loss_function2 = nn.CrossEntropyLoss() # 心象
 

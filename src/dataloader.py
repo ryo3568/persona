@@ -16,7 +16,7 @@ class HazumiDataset(Dataset):
 
     def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features_bert.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features_bert_norm.pkl'
 
         self.SS_ternary, self.TS_ternary, self.sentiment, self.third_sentiment, self.persona, self.third_persona,\
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')

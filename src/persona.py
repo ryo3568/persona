@@ -77,7 +77,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
 
         # Model = Netの場合は有効にする
-        persona = persona.repeat(1, data.shape[1], 1) 
+        # persona = persona.repeat(1, data.shape[1], 1) 
 
         loss = loss_function(pred, persona)
         
@@ -108,11 +108,11 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
     parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
-    parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
+    parser.add_argument('--epochs', type=int, default=100, metavar='E', help='number of epochs')
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
     parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
@@ -144,8 +144,8 @@ if __name__ == '__main__':
     n_classes = 5
 
     D_i = 1218
-    D_h = 100 
-    D_o = 100
+    D_h = 256
+    D_o = 32
 
     testfiles = []
     for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
@@ -174,7 +174,7 @@ if __name__ == '__main__':
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
-            model = FNNModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
+            model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=args.dropout)
             loss_function = nn.MSELoss()
 
             if args.pretrained:
@@ -190,6 +190,8 @@ if __name__ == '__main__':
 
             best_loss, best_label, best_pred= None, None, None
 
+            best_val_loss = None
+
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
@@ -198,9 +200,11 @@ if __name__ == '__main__':
                 tst_loss, tst_pred, tst_label, tst_sep_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
 
 
-                if best_loss == None or best_loss > tst_loss:
+                if best_loss == None or best_val_loss > val_loss:
                     best_loss, best_label, best_pred, best_sep_loss = \
                     tst_loss, tst_label, tst_pred, tst_sep_loss
+
+                    best_val_loss = val_loss
 
                 if args.tensorboard:
                     writer.add_scalar('test: loss', tst_loss, epoch) 
@@ -223,12 +227,11 @@ if __name__ == '__main__':
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))
 
-        print(loss)
-        print(np.array(extr_loss).mean())
-        print(np.array(agre_loss).mean())
-        print(np.array(cons_loss).mean())
-        print(np.array(neur_loss).mean())
-        print(np.array(open_loss).mean())
+        print("外向性　　：", np.array(extr_loss).mean())
+        print("協調性　　：", np.array(agre_loss).mean())
+        print("勤勉性　　：", np.array(cons_loss).mean())
+        print("神経症傾向：", np.array(neur_loss).mean())
+        print("開放性　　：", np.array(open_loss).mean())
 
         losses.append(np.array(loss).mean())
 
@@ -236,3 +239,4 @@ if __name__ == '__main__':
     print('=====Result=====')
     print(f'損失： {np.array(losses).mean():.3f}')
     print(losses)
+    print(loss)

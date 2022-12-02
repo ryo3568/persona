@@ -10,7 +10,7 @@ import torch.optim as optim
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMMultiTaskModel, FNNMultitaskModel
+from model import LSTMMultitaskModel, FNNMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -85,7 +85,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         y_sentiment = s_ternary
         pred_sentiment = pred_sentiment.view(-1, 3)
         # Model = FNNMultitaskModelの場合は有効にする
-        persona = persona.repeat(1, data.shape[1], 1)
+        # persona = persona.repeat(1, data.shape[1], 1)
 
 
         loss_persona = loss_function1(pred_persona, persona)
@@ -127,7 +127,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
     parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     n_classes = 5
 
     D_i = 1218 
-    D_h = 100
+    D_h = 256
     D_o = 32
 
     testfiles = []
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
 
 
-            model = FNNMultitaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
+            model = LSTMMultitaskModel(D_i, D_h, D_o,n_classes=3, dropout=args.dropout)
             loss_function1 = nn.MSELoss() # 性格特性
             loss_function2 = nn.CrossEntropyLoss() # 心象
 
@@ -216,6 +216,8 @@ if __name__ == '__main__':
             best_sentiment_loss, best_sentiment_label, best_sentiment_pred = None, None, None 
             best_all_loss = None
 
+            best_val_loss = None
+
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
@@ -225,7 +227,16 @@ if __name__ == '__main__':
                 tst_persona_label, tst_sentiment_label, tst_persona_sep_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
 
 
-                if best_all_loss == None or best_all_loss > tst_all_loss:
+                # if best_all_loss == None or best_all_loss > tst_all_loss:
+                #     best_persona_loss, best_persona_label, best_persona_pred, best_persona_sep_loss = \
+                #     tst_persona_loss, tst_persona_label, tst_persona_pred, tst_persona_sep_loss
+
+                #     best_sentiment_loss, best_sentiment_label, best_sentiment_pred = \
+                #     tst_sentiment_loss, tst_sentiment_label, tst_sentiment_pred
+
+                #     best_all_loss = tst_all_loss
+
+                if best_all_loss == None or best_val_loss > val_persona_loss:
                     best_persona_loss, best_persona_label, best_persona_pred, best_persona_sep_loss = \
                     tst_persona_loss, tst_persona_label, tst_persona_pred, tst_persona_sep_loss
 
@@ -233,6 +244,7 @@ if __name__ == '__main__':
                     tst_sentiment_loss, tst_sentiment_label, tst_sentiment_pred
 
                     best_all_loss = tst_all_loss
+                    best_val_loss = val_persona_loss
 
 
                 if args.tensorboard:
@@ -277,15 +289,16 @@ if __name__ == '__main__':
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
 
+
         print(f'低群：{np.nanmean(neg)}') 
         print(f'中群：{np.nanmean(neu)}') 
         print(f'高群：{np.nanmean(pos)}')
 
-        print(np.array(extr_loss).mean())
-        print(np.array(agre_loss).mean())
-        print(np.array(cons_loss).mean())
-        print(np.array(neur_loss).mean())
-        print(np.array(open_loss).mean())
+        print("外向性　　：", np.array(extr_loss).mean())
+        print("協調性　　：", np.array(agre_loss).mean())
+        print("勤勉性　　：", np.array(cons_loss).mean())
+        print("神経症傾向：", np.array(neur_loss).mean())
+        print("開放性　　：", np.array(open_loss).mean())
         
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())
@@ -301,3 +314,5 @@ if __name__ == '__main__':
     print(f'損失（性格特性）： {np.array(persona_losses).mean():.3f}')
 
     print(f'正解率： {np.array(accuracies).mean():.3f}')
+
+    print(all_losses)
