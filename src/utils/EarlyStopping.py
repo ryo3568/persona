@@ -1,3 +1,6 @@
+import numpy as np 
+import torch 
+
 class EarlyStopping:
     '''
     早期終了（early stopping）
@@ -7,13 +10,14 @@ class EarlyStopping:
         self._loss = float('inf')
         self.patience = patience 
         self.verbose = verbose 
+        self.path = '../../data/model/checkpoint.pt'
 
     def __call__(self, loss):
         if self._loss < loss:
             self._step += 1 
             if self._step > self.patience:
                 # if self.verbose:
-                    # print('early stopping')
+                #     print('early stopping')
                 return True
         else:
             self._step = 0

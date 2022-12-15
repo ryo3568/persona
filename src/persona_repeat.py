@@ -54,7 +54,8 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     losses = []
     preds = [] 
     labels = []
-    test_loss = []
+    test_loss = [] 
+    time_pred = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -79,7 +80,8 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
                 # _persona = persona.repeat(1, i+1, 1) 
                 # loss = loss_function(pred, _persona)
                 loss = loss_function(pred, persona)
-                test_loss.append(round(loss.item(),3))
+                test_loss.append(round(loss.item(),3)) 
+                time_pred.append(pred.squeeze().tolist())
 
             
         
@@ -106,14 +108,14 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
     avg_loss = round(np.sum(losses)/len(losses), 4)
 
-    return avg_loss, preds, labels, test_loss
+    return avg_loss, preds, labels, test_loss, time_pred
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
-    parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
+    parser.add_argument('--dropout', type=float, default=0.15, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
     parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
@@ -191,14 +193,14 @@ if __name__ == '__main__':
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                trn_loss, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-                val_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-                tst_loss, tst_pred, tst_label, tst_time_loss = train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
+                trn_loss, _, _, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+                val_loss, _, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
+                tst_loss, tst_pred, tst_label, tst_time_loss, tst_time_pred= train_or_eval_model(model, loss_function, test_loader, epoch, rate=rate)
             
 
                 if best_loss == None or best_val_loss > val_loss:
-                    best_loss, best_label, best_pred, best_time_loss = \
-                    tst_loss, tst_label, tst_pred, tst_time_loss
+                    best_loss, best_label, best_pred, best_time_loss, best_time_pred = \
+                    tst_loss, tst_label, tst_pred, tst_time_loss, tst_time_pred 
 
                     best_val_loss = val_loss
 
@@ -215,9 +217,11 @@ if __name__ == '__main__':
             if not os.path.exists(dir):
                 os.makedirs(dir)
 
-            with open(dir+'single.csv', 'w') as f:
+            with open(dir+'single221206.csv', 'w') as f:
                 writer = csv.writer(f) 
-                writer.writerow(best_time_loss)
+                writer.writerow(best_time_loss) 
+                writer.writerow(best_time_pred)
+                writer.writerow(best_label[0])
 
             if args.tensorboard:
                 writer.close() 
@@ -226,6 +230,7 @@ if __name__ == '__main__':
             time_loss.append(best_time_loss)
             ave_time_loss.append(np.mean(best_time_loss)) 
             std_time_loss.append(np.std(best_time_loss))
+    
 
 
             # best_pred = list(itertools.chain.from_iterable(best_pred))

@@ -2,6 +2,8 @@ import numpy as np
 import argparse
 import os
 import glob
+import random 
+import string
 from tqdm import tqdm
 import itertools
 import torch
@@ -17,6 +19,11 @@ from utils.EarlyStopping import EarlyStopping
 
 import warnings 
 warnings.simplefilter('ignore')
+
+import wandb 
+
+def randomname(n):
+   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -62,7 +69,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         model.train() 
     else:
         model.eval() 
-    for data in dataloader:
+    for i, data in enumerate(dataloader):
         if train:
             optimizer.zero_grad() 
         
@@ -96,9 +103,6 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
         if train:
             loss.backward()
-            if args.tensorboard:
-                for param in model.named_parameters():
-                    writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
 
 
@@ -107,6 +111,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     return avg_loss, preds, labels, separate_loss
 
 def objective(trial):
+
     D_i = 1218 
 
     # ハイパラチューニング対象
@@ -129,6 +134,9 @@ def objective(trial):
     cons_loss = [] 
     neur_loss = [] 
     open_loss = [] 
+    
+
+    project_name = randomname(10)
 
 
     for testfile in tqdm(testfiles, position=0, leave=True):
@@ -136,7 +144,8 @@ def objective(trial):
         model = LSTMModel(D_i, D_h, D_o,n_classes=5, dropout=in_droprate)
         loss_function = nn.MSELoss() # 性格特性
 
-                    
+        wandb.init(project=project_name, config=args, name=testfile)
+
         if args.cuda:
             model.cuda()
 
@@ -144,39 +153,44 @@ def objective(trial):
 
         train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=args.batch_size, valid=0.1) 
 
-        best_loss, best_label, best_pred= None, None, None
+        best_loss, best_val_loss = None, None
 
-        best_val_loss = None
-
-        # es = EarlyStopping(patience=10, verbose=1)
-
-        if args.tensorboard:
-            from tensorboardX import SummaryWriter 
-            writer = SummaryWriter()
+        es = EarlyStopping(patience=10)
 
         for epoch in range(args.epochs):
             trn_loss, _, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
             val_loss, _, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
-            tst_loss, tst_pred, tst_label, tst_sep_loss = train_or_eval_model(model, loss_function, test_loader, epoch)
+            tst_loss, _, _, tst_sep_loss = train_or_eval_model(model, loss_function, test_loader, epoch)
 
 
             if best_loss == None or best_val_loss > val_loss:
-                best_loss, best_label, best_pred, best_sep_loss = \
-                tst_loss, tst_label, tst_pred, tst_sep_loss
+                best_loss, best_sep_loss = tst_loss, tst_sep_loss
 
                 best_val_loss = val_loss
 
+            if es(val_loss):
+                break
 
-            # if args.tensorboard:
-            #     writer.add_scalar('test: loss', tst_persona_loss, epoch) 
-            #     writer.add_scalar('train: loss', trn_persona_loss, epoch) 
-            
-            # if es(val_persona_loss):
-            #     break
+            wandb.log({
+                "_train loss": trn_loss,
+                "_valid loss": val_loss,
+                "_test loss": tst_loss,
+                "extraversion": tst_sep_loss[0],
+                "agreeableness": tst_sep_loss[1],
+                "conscientiousness": tst_sep_loss[2],
+                "neuroticism": tst_sep_loss[3],
+                "openness": tst_sep_loss[4],
+            })
 
-
-        if args.tensorboard:
-            writer.close() 
+        wandb.log({
+            'best loss': best_loss,
+            'best etra loss': best_sep_loss[0],
+            'best agre loss': best_sep_loss[1],
+            'best cons loss': best_sep_loss[2], 
+            'best neur loss': best_sep_loss[3], 
+            'best open loss': best_sep_loss[4]
+        })
+        
 
         persona_loss.append(best_loss)
 
@@ -186,41 +200,34 @@ def objective(trial):
         neur_loss.append(best_sep_loss[3]) 
         open_loss.append(best_sep_loss[4]) 
 
-        # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
-        # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
+        wandb.finish()
+        
 
-    print('=====Result=====')
+    wandb.init(project=project_name, config=args, name='stats')
+    wandb.log({
+    'best loss': np.array(persona_loss).mean(),
+    'best etra loss': np.array(extr_loss).mean(),
+    'best agre loss': np.array(agre_loss).mean(),
+    'best cons loss': np.array(cons_loss).mean(), 
+    'best neur loss': np.array(neur_loss).mean(), 
+    'best open loss': np.array(open_loss).mean()
+    })
+    wandb.finish()
 
-    print("外向性   :", np.array(extr_loss).mean())
-    print("協調性   :", np.array(agre_loss).mean())
-    print("勤勉性   :", np.array(cons_loss).mean())
-    print("神経症傾向:", np.array(neur_loss).mean())
-    print("開放性   :", np.array(open_loss).mean())
-
-    print(f'損失（性格特性）： {np.array(persona_loss).mean():.3f}')
     
     return np.array(persona_loss).mean()
-
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
-    parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
-    parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
-    parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
+    parser.add_argument('--batch-size', type=int, default=5, metavar='BS', help='batch size')
     parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
-    parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
-    parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
-    parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
-
+    
     # 追加
     parser.add_argument('--trail_size', type=int, default=1, help='number of trail')
      
     args = parser.parse_args()
-
-    # print(args)
 
     args.cuda = torch.cuda.is_available() and not args.no_cuda 
     if args.cuda:

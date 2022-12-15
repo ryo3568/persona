@@ -60,6 +60,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
     y_sentiments = []
     time_persona_loss = []
     time_sentiment_loss = []
+    time_persona_pred = []
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -99,6 +100,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
                 loss_sentiment = loss_function2(pred_sentiment, y_sentiment[:i+1])
                 time_persona_loss.append(round(loss_persona.item(),3))   
                 time_sentiment_loss.append(round(loss_sentiment.item(), 3))
+                time_persona_pred.append(pred_persona.squeeze().tolist())
 
         # Model = FNNMultitaskModelの場合は有効にする
         # persona = persona.repeat(1, data.shape[1], 1)
@@ -107,7 +109,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
 
         loss_sentiment = loss_function2(pred_sentiment, y_sentiment)
         
-        loss = loss_persona + loss_sentiment
+        loss = 0.75 * loss_persona + 0.25 * loss_sentiment
 
         pred_sentiment = torch.argmax(pred_sentiment, dim=1)
 
@@ -132,14 +134,14 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
     avg_persona_loss = round(np.sum(persona_losses)/len(persona_losses), 4)
     avg_sentiment_loss = round(np.sum(sentiment_losses)/len(sentiment_losses), 4)
 
-    return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments, time_persona_loss, time_sentiment_loss
+    return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments, time_persona_loss, time_sentiment_loss, time_persona_pred
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
-    parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
+    parser.add_argument('--dropout', type=float, default=0.15, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
     parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
     parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
@@ -197,6 +199,7 @@ if __name__ == '__main__':
         multi = []
         ave_time_loss = [] 
         std_time_loss = [] 
+        best_pred = []
 
         for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -220,15 +223,15 @@ if __name__ == '__main__':
             # es = EarlyStopping(patience=10, verbose=1)
 
             for epoch in range(n_epochs):
-                trn_persona_loss, trn_sentiment_loss, _, _, _, _, _, _, _= train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True)
-                val_persona_loss, val_sentiment_loss, _, _, _, _, _, _, _= train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch)
+                trn_persona_loss, trn_sentiment_loss, _, _, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True)
+                val_persona_loss, val_sentiment_loss, _, _, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch)
                 tst_all_loss, tst_persona_loss, tst_sentiment_loss, tst_persona_pred, tst_sentiment_pred, \
-                tst_persona_label, tst_sentiment_label, time_persona_loss, time_sentiment_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
+                tst_persona_label, tst_sentiment_label, time_persona_loss, time_sentiment_loss, time_persona_pred = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, rate=rate)
 
 
                 if best_all_loss == None or best_all_loss > tst_all_loss:
-                    best_persona_loss, best_persona_label, best_persona_pred, best_time_persona_loss, best_time_sentiment_loss = \
-                    tst_persona_loss, tst_persona_label, tst_persona_pred, time_persona_loss, time_sentiment_loss
+                    best_persona_loss, best_persona_label, best_persona_pred, best_time_persona_loss, best_time_sentiment_loss, best_time_persona_pred = \
+                    tst_persona_loss, tst_persona_label, tst_persona_pred, time_persona_loss, time_sentiment_loss, time_persona_pred
 
                     best_sentiment_loss, best_sentiment_label, best_sentiment_pred = \
                     tst_sentiment_loss, tst_sentiment_label, tst_sentiment_pred
@@ -246,10 +249,12 @@ if __name__ == '__main__':
             dir = f'../data/results/{testfile}/'
             if not os.path.exists(dir):
                 os.makedirs(dir)
-            with open(dir + 'multi.csv', 'w') as f:
+            with open(dir + 'multi221206.csv', 'w') as f:
                 writer = csv.writer(f) 
                 writer.writerow(best_time_persona_loss)
                 writer.writerow(best_time_sentiment_loss)
+                writer.writerow(best_time_persona_pred)
+                writer.writerow(best_persona_label[0].squeeze())
 
 
             if args.tensorboard:
@@ -271,6 +276,7 @@ if __name__ == '__main__':
 
             # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
             # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
+
 
         all_losses.append(np.array(all_loss).mean())
         sentiment_losses.append(np.array(sentiment_loss).mean())

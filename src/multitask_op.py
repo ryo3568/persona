@@ -2,6 +2,8 @@ import numpy as np
 import argparse
 import os
 import glob
+import random 
+import string
 from tqdm import tqdm
 import itertools
 import torch
@@ -10,13 +12,20 @@ import torch.optim as optim
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+import mlflow 
 import optuna
 from model import LSTMMultitaskModel, FNNMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
+
 import warnings 
 warnings.simplefilter('ignore')
+
+import wandb 
+
+def randomname(n):
+   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -66,18 +75,16 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         model.train() 
     else:
         model.eval() 
-    alpha, beta = loss_weight
     for data in dataloader:
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, persona, sentiment, s_ternary =\
+        text, visual, audio, persona, _, s_ternary =\
         [d.cuda() for d in data[:-1]] if args.cuda else data[:-1]
 
-        # data = audio
-        # data = torch.cat((visual, audio), dim=-1)
-        data = torch.cat((text, visual, audio), dim=-1)
-            
+        data = text 
+        # data = torch.cat((text, visual), dim=-1)
+        # data = torch.cat((text, visual, audio), dim=-1)            
         
         pred_persona, pred_sentiment = model(data)
 
@@ -85,6 +92,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
         s_ternary = s_ternary.view(-1)
         y_sentiment = s_ternary
         pred_sentiment = pred_sentiment.view(-1, 3)
+
         # Model = FNNMultitaskModelの場合は有効にする
         # persona = persona.repeat(1, data.shape[1], 1)
 
@@ -98,7 +106,7 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
                 tmp_loss = round(loss_function1(pred_persona[:, i], persona[:, i]).item(), 3)
                 separate_loss.append(tmp_loss)
         
-        loss = alpha * loss_persona + beta * loss_sentiment
+        loss = loss_weight * loss_persona + (1-loss_weight) * loss_sentiment
 
         pred_sentiment = torch.argmax(pred_sentiment, dim=1)
 
@@ -114,9 +122,9 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
 
         if train:
             loss.backward()
-            if args.tensorboard:
-                for param in model.named_parameters():
-                    writer.add_histogram(param[0], param[1].grad, epoch)
+            # if args.tensorboard:
+            #     for param in model.named_parameters():
+            #         writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step() 
 
     avg_all_loss = round(np.sum(all_losses)/len(all_losses), 4)
@@ -125,18 +133,18 @@ def train_or_eval_model(model, loss_function1, loss_function2, dataloader, epoch
 
     return avg_all_loss, avg_persona_loss, avg_sentiment_loss, pred_personas, pred_sentiments, y_personas, y_sentiments, separate_loss
 
+
 def objective(trial):
-    D_i = 1218 
+
+    D_i = 768
 
     # ハイパラチューニング対象
-    D_h = int(trial.suggest_discrete_uniform("D_h", 200, 500, 50))
-    D_o = int(trial.suggest_discrete_uniform("D_o", 10, 32, 2))
-    in_droprate = trial.suggest_discrete_uniform("in_droprate", 0.0, 0.2, 0.05)
+    D_h = int(trial.suggest_discrete_uniform("D_h", 100, 1000, 50))
+    D_o = int(trial.suggest_discrete_uniform("D_o", 10, 500, 10))
+    in_droprate = trial.suggest_discrete_uniform("in_droprate", 0.0, 0.5, 0.05)
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-10, 1e-3)
     adam_lr = trial.suggest_loguniform('adam_lr', 1e-5, 1e-1)
-    alpha = trial.suggest_discrete_uniform('alpha', 0.1, 1.0, 0.05)
-    beta = trial.suggest_discrete_uniform('beta', 0.1, 1.0, 0.05)
-    loss_weight = (alpha, beta)
+    loss_weight = trial.suggest_discrete_uniform('alpha', 0.05, 0.95, 0.05)
 
     testfiles = []
     for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
@@ -159,12 +167,16 @@ def objective(trial):
     neu = []
     neg = []
 
+    project_name = randomname(10)
+
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
         model = LSTMMultitaskModel(D_i, D_h, D_o,n_classes=3, dropout=in_droprate)
         loss_function1 = nn.MSELoss() # 性格特性
         loss_function2 = nn.CrossEntropyLoss() # 心象
+
+        wandb.init(project=project_name, config=args, name=testfile)
 
                     
         if args.cuda:
@@ -180,15 +192,12 @@ def objective(trial):
 
         best_val_loss = None
 
-        # es = EarlyStopping(patience=10, verbose=1)
+        es = EarlyStopping(patience=10, verbose=1)
 
-        if args.tensorboard:
-            from tensorboardX import SummaryWriter 
-            writer = SummaryWriter()
 
         for epoch in range(args.epochs):
-            trn_persona_loss, _, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True, loss_weight=loss_weight)
-            val_persona_loss, _, _, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch, loss_weight=loss_weight)
+            trn_all_loss, trn_persona_loss, trn_sentiment_loss, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, train_loader, epoch, optimizer, True, loss_weight=loss_weight)
+            val_all_loss, val_persona_loss, val_sentiment_loss, _, _, _, _, _ = train_or_eval_model(model, loss_function1, loss_function2, valid_loader, epoch, loss_weight=loss_weight)
             tst_all_loss, tst_persona_loss, tst_sentiment_loss, tst_persona_pred, tst_sentiment_pred, \
             tst_persona_label, tst_sentiment_label, tst_persona_sep_loss = train_or_eval_model(model, loss_function1, loss_function2, test_loader, epoch, loss_weight=loss_weight)
 
@@ -202,18 +211,26 @@ def objective(trial):
 
                 best_all_loss = tst_all_loss
                 best_val_loss = val_persona_loss
-
-
-            if args.tensorboard:
-                writer.add_scalar('test: loss', tst_persona_loss, epoch) 
-                writer.add_scalar('train: loss', trn_persona_loss, epoch) 
             
-            # if es(val_persona_loss):
-            #     break
+            if es(val_persona_loss):
+                break
 
-
-        if args.tensorboard:
-            writer.close() 
+            wandb.log({
+                "_train loss": trn_all_loss,
+                "_train persona loss": trn_persona_loss, 
+                "_train sentiment loss": trn_sentiment_loss,
+                "_valid loss": val_all_loss,
+                "_valid persona loss": val_persona_loss, 
+                "_valid sentiment loss": val_sentiment_loss,
+                "_test loss": tst_all_loss,
+                "_test persona loss": tst_persona_loss, 
+                "_test sentiment loss": tst_sentiment_loss,
+                "extraversion": tst_persona_sep_loss[0],
+                "agreeableness": tst_persona_sep_loss[1],
+                "conscientiousness": tst_persona_sep_loss[2],
+                "neuroticism": tst_persona_sep_loss[3],
+                "openness": tst_persona_sep_loss[4],
+            })
 
         all_loss.append(best_all_loss)
         sentiment_loss.append(best_sentiment_loss)
@@ -228,8 +245,20 @@ def objective(trial):
         best_sentiment_pred = list(itertools.chain.from_iterable(best_sentiment_pred))
         best_sentiment_label = list(itertools.chain.from_iterable(best_sentiment_label))     
 
+        acc = balanced_accuracy_score(best_sentiment_label, best_sentiment_pred)
+        accuracy.append(acc)
 
-        accuracy.append(balanced_accuracy_score(best_sentiment_label, best_sentiment_pred))
+        wandb.log({
+            'best loss': best_all_loss,
+            'best persona loss': best_persona_loss, 
+            'best sentiment loss': best_sentiment_loss, 
+            'best etra loss': best_persona_sep_loss[0],
+            'best agre loss': best_persona_sep_loss[1],
+            'best cons loss': best_persona_sep_loss[2], 
+            'best neur loss': best_persona_sep_loss[3], 
+            'best open loss': best_persona_sep_loss[4],
+            'balanced accuracy': acc
+        })
 
         matrix = confusion_matrix(best_sentiment_label, best_sentiment_pred)
         tmp = matrix.sum(axis=1)
@@ -244,6 +273,22 @@ def objective(trial):
 
         # best_persona_pred = list(itertools.chain.from_iterable(best_persona_pred))
         # best_persona_label = list(itertools.chain.from_iterable(best_persona_label))
+
+        wandb.finish()
+
+    wandb.init(project=project_name, config=args, name='stats')
+    wandb.log({
+    'best loss': np.array(all_loss).mean(),
+    'best persona loss': np.array(persona_loss).mean(),
+    'best sentiment loss': np.array(sentiment_loss).mean(),
+    'best etra loss': np.array(extr_loss).mean(),
+    'best agre loss': np.array(agre_loss).mean(),
+    'best cons loss': np.array(cons_loss).mean(), 
+    'best neur loss': np.array(neur_loss).mean(), 
+    'best open loss': np.array(open_loss).mean(),
+    'balanced accuracy': np.array(accuracy).mean()
+    })
+    wandb.finish()
 
     print('=====Result=====')
     print(f'低群：{np.nanmean(neg)}') 
@@ -269,21 +314,14 @@ def objective(trial):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR', help='learning rate')
-    parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
-    parser.add_argument('--dropout', type=float, default=0.25, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
-    parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
-    parser.add_argument('--class-weight', action='store_true', default=False, help='use class weight')
-    parser.add_argument('--attention', action='store_true', default=False, help='use attention on top of lstm')
-    parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
-
+    parser.add_argument('--epochs', type=int, default=600, metavar='E', help='number of epochs')
+ 
     # 追加
     parser.add_argument('--trail_size', type=int, default=1, help='number of trail')
      
     args = parser.parse_args()
 
-    # print(args)
 
     args.cuda = torch.cuda.is_available() and not args.no_cuda 
     if args.cuda:
@@ -294,4 +332,12 @@ if __name__ == '__main__':
     study = optuna.create_study() 
     study.optimize(objective, n_trials=args.trail_size)
 
-    print(study.best_params)
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: {}".format(trial.value))
+
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
