@@ -11,7 +11,6 @@ import torch.optim as optim
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-import optuna
 from model import LSTMSentimentModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
@@ -23,6 +22,14 @@ import wandb
 
 def randomname(n):
    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+def get_files():
+    testfiles = []
+    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
+        testfiles.append(os.path.splitext(os.path.basename(f))[0])
+
+    testfiles = sorted(testfiles)
+    return testfiles
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -70,11 +77,9 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, _, _, s_ternary =\
-        [d.cuda() for d in data[:-1]] if args.cuda else data[:-1]
+        text, visual, audio, _, s_ternary =\
+        [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
-        # data = audio
-        # data = torch.cat((visual, audio), dim=-1)
         data = torch.cat((text, visual, audio), dim=-1)
             
         
@@ -83,12 +88,9 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         label = s_ternary.view(-1)
         pred = pred.view(-1, 3)
 
-        # persona = persona.repeat(1, data.shape[1], 1)
-
         loss = loss_function(pred, label)
 
         pred = torch.argmax(pred, dim=1)
-
 
         Loss.append(loss.item())
 
@@ -103,47 +105,49 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
     return avg_loss, pred, label
 
-def objective(trial):
-    D_i = 1218 
 
-    # ハイパラチューニング対象
-    D_h = int(trial.suggest_discrete_uniform("D_h", 200, 500, 50))
-    in_droprate = trial.suggest_discrete_uniform("in_droprate", 0.0, 0.2, 0.05)
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-10, 1e-3)
-    adam_lr = trial.suggest_loguniform('adam_lr', 1e-5, 1e-1)
+if __name__ == '__main__':
 
-    config = dict(trial.params) 
-    config['trial.number'] = trial.number
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--pretrain', action='store_true', default=False)
+     
+    args = parser.parse_args()
 
-    config.update(vars(args))
+    config = {
+        "epochs": 500,
+        "batch_size": 1,
+        "pretrain": args.pretrain,
+        "D_h1": 256, 
+        "D_h2": 64, 
+        "weight_decay": 1e-5,
+        "adam_lr": 1e-5,
+        "dropout": 0.6
+    }
 
-    testfiles = []
-    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
-        testfiles.append(os.path.splitext(os.path.basename(f))[0])
+    project_name = 'sentiment'
+    group_name = randomname(5)
 
-    testfiles = sorted(testfiles)
-
-    Loss = []
+    testfiles = get_files()
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMSentimentModel(D_i, D_h)
+        model = LSTMSentimentModel(config["D_h1"], config["D_h2"], config["dropout"])
         loss_function = nn.CrossEntropyLoss() 
 
-        wandb.init(project='sentiment', group=group_name, config=config, name=testfile)  
+        wandb.init(project=project_name, group=group_name, config=config, name=testfile)  
 
-        if args.cuda:
+        if torch.cuda.is_available():
             model.cuda()
 
-        optimizer = optim.Adam(model.parameters(), lr=adam_lr, weight_decay=weight_decay)
+        optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
-        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=args.batch_size, valid=0.1) 
+        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], valid=0.1) 
 
-        best_loss, best_acc,  best_val_loss = None, None, None
+        best_loss, best_acc,  best_val_loss, best_param = None, None, None, None
 
         es = EarlyStopping(patience=10, verbose=1)
 
-        for epoch in range(args.epochs):
+        for epoch in range(config["epochs"]):
             trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
             val_loss, _, _= train_or_eval_model(model, loss_function, valid_loader, epoch)
             tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch)
@@ -156,6 +160,8 @@ def objective(trial):
 
                 best_val_loss = val_loss
 
+                if args.pretrain:
+                    best_param = model.state_dict()
         
             if es(val_loss):
                 break
@@ -165,7 +171,8 @@ def objective(trial):
                 '_val loss': val_loss
             })
 
-        Loss.append(best_loss)     
+        if args.pretrain:
+            torch.save(best_param, f'../data/model/{testfile}.pth')
 
         wandb.log({
             'tst loss': best_loss,
@@ -173,37 +180,3 @@ def objective(trial):
         })            
             
         wandb.finish()
-    
-    return np.array(Loss).mean()
-
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
-    parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
-
-    # 追加
-    parser.add_argument('--trail_size', type=int, default=1, help='number of trail')
-     
-    args = parser.parse_args()
-
-    args.cuda = torch.cuda.is_available() and not args.no_cuda 
-    if args.cuda:
-        print('Running on GPU') 
-    else:
-        print('Running on CPU')
-
-    group_name = randomname(5)
-
-    study = optuna.create_study() 
-    study.optimize(objective, n_trials=args.trail_size)
-
-    print("Best trial:")
-    trial = study.best_trial
-
-    print("  Value: {}".format(trial.value))
-
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))

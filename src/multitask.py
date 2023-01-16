@@ -1,5 +1,4 @@
 import numpy as np
-import argparse
 import os
 import glob
 import random 
@@ -8,11 +7,10 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score, f1_score
+from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-import optuna
-from model import LSTMMultitaskModel, FNNMultitaskModel, biLSTMMultitaskModel
+from model import LSTMMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -24,6 +22,14 @@ import wandb
 
 def randomname(n):
    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+def get_files():
+    testfiles = []
+    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
+        testfiles.append(os.path.splitext(os.path.basename(f))[0])
+
+    testfiles = sorted(testfiles)
+    return testfiles
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -59,7 +65,7 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=2, pin_m
     return train_loader, valid_loader, test_loader 
 
 
-def train_or_eval_model(model, ploss_function, sloss_function, dataloader, epoch, optimizer=None, train=False, loss_weight=None):
+def train_or_eval_model(model, ploss_function, sloss_function, dataloader, optimizer=None, train=False, loss_weight=None):
     pLoss = []
     sLoss = []
     Loss = [] 
@@ -73,8 +79,8 @@ def train_or_eval_model(model, ploss_function, sloss_function, dataloader, epoch
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, persona, _, s_ternary =\
-        [d.cuda() for d in data[:-1]] if args.cuda else data[:-1]
+        text, visual, audio, persona, s_ternary =\
+        [d.cuda() for d in data[:-1]] if torch.cuda.is_available()  else data[:-1]
 
         # data = visual
         # data = torch.cat((visual, text), dim=-1)
@@ -118,58 +124,52 @@ def train_or_eval_model(model, ploss_function, sloss_function, dataloader, epoch
 
     return avg_loss, avg_ploss, avg_sloss, ppred, spred, plabel, slabel
 
-def objective(trial):
 
-    D_i = 1218
 
-    # ハイパラチューニング対象
-    D_h = int(trial.suggest_discrete_uniform("D_h", 100, 1000, 50))
-    in_droprate = trial.suggest_discrete_uniform("in_droprate", 0.0, 0.5, 0.05)
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-10, 1e-3)
-    adam_lr = trial.suggest_loguniform('adam_lr', 1e-5, 1e-1)
-    loss_weight = trial.suggest_discrete_uniform('alpha', 0.05, 0.95, 0.05)
+if __name__ == '__main__':
 
-    config = dict(trial.params) 
-    config['trial.number'] = trial.number
+    config = {
+        "epochs": 500,
+        "batch_size": 1,
+        "D_h1": 256, 
+        "D_h2": 64, 
+        "weight_decay": 1e-5,
+        "adam_lr": 1e-5,
+        "dropout": 0.6,
+        "loss_weight": 0.6
+    }
 
-    config.update(vars(args))
+    project_name = 'multitask'
+    group_name = randomname(5)
 
-    testfiles = []
-    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
-        testfiles.append(os.path.splitext(os.path.basename(f))[0])
-
-    testfiles = sorted(testfiles)
-
-    loss = []
-
+    testfiles = get_files()
     Trait = ['extr', 'agre', 'cons', 'neur', 'open']
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMMultitaskModel(D_i, D_h, prediction=False)
+        model = LSTMMultitaskModel(config["D_h1"], config["D_h2"], config["dropout"])
         pLoss_function = nn.BCELoss() # 性格特性
         sLoss_function = nn.CrossEntropyLoss() # 心象
 
         Acc = dict.fromkeys(Trait)
 
-        wandb.init(project='multitask', group=group_name, config=config, name=testfile)
+        wandb.init(project=project_name, group=group_name, config=config, name=testfile)
 
-                    
-        if args.cuda:
+        if torch.cuda.is_available():
             model.cuda()
 
-        optimizer = optim.Adam(model.parameters(), lr=adam_lr, weight_decay=weight_decay)
+        optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
-        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=args.batch_size, valid=0.1) 
+        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], valid=0.1) 
 
         best_val_loss, best_loss, best_ploss, best_sloss = None, None, None, None
 
         es = EarlyStopping(patience=10, verbose=1)
 
-        for epoch in range(args.epochs):
-            trn_loss, trn_ploss, trn_sloss, _, _, _, _ = train_or_eval_model(model, pLoss_function, sLoss_function, train_loader, epoch, optimizer, True, loss_weight=loss_weight)
-            val_loss, val_ploss, val_sloss, _, _, _, _ = train_or_eval_model(model, pLoss_function, sLoss_function, valid_loader, epoch, loss_weight=loss_weight)
-            tst_loss, tst_ploss, tst_sloss, tst_ppred, tst_spred, tst_plabel, tst_slabel = train_or_eval_model(model, pLoss_function, sLoss_function, test_loader, epoch, loss_weight=loss_weight)
+        for epoch in range(config["epochs"]):
+            trn_loss, trn_ploss, trn_sloss, _, _, _, _ = train_or_eval_model(model, pLoss_function, sLoss_function, train_loader, optimizer, True, loss_weight=config["loss_weight"])
+            val_loss, val_ploss, val_sloss, _, _, _, _ = train_or_eval_model(model, pLoss_function, sLoss_function, valid_loader, loss_weight=config["loss_weight"])
+            tst_loss, tst_ploss, tst_sloss, tst_ppred, tst_spred, tst_plabel, tst_slabel = train_or_eval_model(model, pLoss_function, sLoss_function, test_loader, loss_weight=config["loss_weight"])
 
 
             if best_loss == None or best_val_loss > val_ploss:
@@ -184,7 +184,7 @@ def objective(trial):
 
                 best_val_loss = val_ploss
             
-            if es(val_ploss):
+            if es(val_loss):
                 break
 
             wandb.log({
@@ -195,8 +195,6 @@ def objective(trial):
                 "_val ploss": val_ploss, 
                 "_val sloss": val_sloss,
             })
-            
-        loss.append(best_ploss) # best_ploss or best_loss
 
         wandb.log({
             'tst loss': best_loss,
@@ -204,48 +202,11 @@ def objective(trial):
             'tst sloss': best_sloss, 
             'tst pacc': best_pacc,
             'tst sacc': best_sacc,
-            'extr': Acc['extr'],
-            'agre': Acc['agre'],
-            'cons': Acc['cons'],
-            'neur': Acc['neur'],
-            'open': Acc['open']
+            '1extr': Acc['extr'],
+            '2agre': Acc['agre'],
+            '3cons': Acc['cons'],
+            '4neur': Acc['neur'],
+            '5open': Acc['open']
         })
 
         wandb.finish()
-
-    return np.array(loss).mean()
-
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
-    parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
-    parser.add_argument('--epochs', type=int, default=60, metavar='E', help='number of epochs')
- 
-    # 追加
-    parser.add_argument('--trail_size', type=int, default=1, help='number of trail')
-     
-    args = parser.parse_args()
-
-
-    args.cuda = torch.cuda.is_available() and not args.no_cuda 
-    if args.cuda:
-        print('Running on GPU') 
-    else:
-        print('Running on CPU')
-
-    group_name = randomname(5)
-
-    study = optuna.create_study() 
-    study.optimize(objective, n_trials=args.trail_size)
-
-
-    print("Best trial:")
-    trial = study.best_trial
-
-    print("  Value: {}".format(trial.value))
-
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
