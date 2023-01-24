@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import glob
+import argparse
 import random 
 import string
 from tqdm import tqdm
@@ -10,7 +11,7 @@ import torch.optim as optim
 from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMMultitaskModel
+from model import LSTMMultitaskModel, GRUMultitaskModel, RNNMultitaskModel, biLSTMMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -128,6 +129,11 @@ def train_or_eval_model(model, ploss_function, sloss_function, dataloader, optim
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=int, default=0, help='0:RNN, 1:GRU, 2:LSTM, 3:bi-LSTM')
+     
+    args = parser.parse_args()
+
     config = {
         "epochs": 500,
         "batch_size": 1,
@@ -147,13 +153,31 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMMultitaskModel(config["D_h1"], config["D_h2"], config["dropout"])
+        if args.model == 0:
+            model = RNNMultitaskModel(config)
+        elif args.model == 1:
+            model = GRUMultitaskModel(config)
+        elif args.model == 2:
+            model = LSTMMultitaskModel(config)
+        else:
+            model = biLSTMMultitaskModel(config)
+
+        # model = GRUMultitaskModel(config["D_h1"], config["D_h2"], config["dropout"])
         pLoss_function = nn.BCELoss() # 性格特性
         sLoss_function = nn.CrossEntropyLoss() # 心象
 
         Acc = dict.fromkeys(Trait)
 
-        wandb.init(project=project_name, group=group_name, config=config, name=testfile)
+        if args.model == 0:
+            notes = 'RNN'
+        elif args.model == 1:
+            notes = 'GRU'
+        elif args.model == 2:
+            notes = 'LSTM'
+        else:
+            notes = 'biLSTM'
+
+        wandb.init(project=project_name, group=group_name, config=config, name=testfile, notes=notes)
 
         if torch.cuda.is_available():
             model.cuda()

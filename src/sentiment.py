@@ -11,7 +11,7 @@ import torch.optim as optim
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMSentimentModel
+from model import LSTMSentimentModel, GRUSentimentModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMSentimentModel(config["D_h1"], config["D_h2"], config["dropout"])
+        model = GRUSentimentModel(config["D_h1"], config["D_h2"], config["dropout"])
         loss_function = nn.CrossEntropyLoss() 
 
         wandb.init(project=project_name, group=group_name, config=config, name=testfile)  

@@ -11,7 +11,7 @@ import torch.optim as optim
 from sklearn.metrics import  accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMModel
+from model import LSTMModel, GRUModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMModel(config["D_h1"], config["D_h2"], config["dropout"])
+        model = GRUModel(config["D_h1"], config["D_h2"], config["dropout"])
 
         if args.finetune:
             model.load_state_dict(torch.load(f'../data/model/{testfile}.pth'), strict=False) 
