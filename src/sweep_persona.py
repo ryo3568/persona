@@ -70,7 +70,7 @@ def train(config=None):
             valid_loader = DataLoader(valid_dataset, batch_size, shuffle=False) 
 
 
-            model = LSTMModel(config.D_h1, config.D_h2, config.dropout).cuda()
+            model = LSTMModel(config).cuda()
             optimizer = optim.Adam(model.parameters(), lr=config.adam_lr, weight_decay=config.weight_decay)
 
             best_loss = -1

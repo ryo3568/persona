@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = GRUModel(config["D_h1"], config["D_h2"], config["dropout"])
+        model = GRUModel(config)
 
         if args.finetune:
             model.load_state_dict(torch.load(f'../data/model/{testfile}.pth'), strict=False) 

@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = GRUSentimentModel(config["D_h1"], config["D_h2"], config["dropout"])
+        model = GRUSentimentModel(config)
         loss_function = nn.CrossEntropyLoss() 
 
         wandb.init(project=project_name, group=group_name, config=config, name=testfile)  

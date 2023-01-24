@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
@@ -6,14 +7,17 @@ class LSTMModel(nn.Module):
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         super(LSTMModel, self).__init__()
+        D_h1 = config['D_h1'] 
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
+
         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2) # linear for sentiment
         self.plinear = nn.Linear(D_h2, 5)
         self.dropout = nn.Dropout(dropout)
         self.sigmoid = nn.Sigmoid()
-
 
     def forward(self, x):
         out, _ = self.lstm(x)
@@ -29,8 +33,12 @@ class GRUModel(nn.Module):
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         super(GRUModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
+
         self.lstm = nn.GRU(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2) # linear for sentiment
         self.plinear = nn.Linear(D_h2, 5)
@@ -148,9 +156,11 @@ class LSTMMultitaskModel(nn.Module):
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         super(LSTMMultitaskModel, self).__init__()
-        self.dropout = nn.Dropout(dropout)
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
         self.lstm = nn.LSTM(1218, hidden_size=D_h1, batch_first=True)
         self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
@@ -158,7 +168,7 @@ class LSTMMultitaskModel(nn.Module):
         self.plinear1 = nn.Linear(D_h1, D_h2)
         self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
         self.sigmoid = nn.Sigmoid()
-
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out, _ = self.lstm(x)
@@ -181,9 +191,11 @@ class GRUMultitaskModel(nn.Module):
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         super(GRUMultitaskModel, self).__init__()
-        self.dropout = nn.Dropout(dropout)
+        D_h1 = config['D_h1'] 
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
         self.lstm = nn.GRU(1218, hidden_size=D_h1, batch_first=True)
         self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
@@ -191,6 +203,7 @@ class GRUMultitaskModel(nn.Module):
         self.plinear1 = nn.Linear(D_h1, D_h2)
         self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
         self.sigmoid = nn.Sigmoid()
+        self.dropout = nn.Dropout(dropout)
 
 
     def forward(self, x):
@@ -216,7 +229,9 @@ class RNNMultitaskModel(nn.Module):
     """
     def __init__(self, D_h1, D_h2, dropout):
         super(RNNMultitaskModel, self).__init__()
-        self.dropout = nn.Dropout(dropout)
+        D_h1 = config['D_h1'] 
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
         self.lstm = nn.RNN(1218, hidden_size=D_h1, batch_first=True)
         self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
@@ -224,6 +239,7 @@ class RNNMultitaskModel(nn.Module):
         self.plinear1 = nn.Linear(D_h1, D_h2)
         self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
         self.sigmoid = nn.Sigmoid()
+        self.dropout = nn.Dropout(dropout)
 
 
     def forward(self, x):
@@ -341,17 +357,17 @@ class biLSTMMultitaskModel(nn.Module):
 
     def __init__(self, config):
         super(biLSTMMultitaskModel, self).__init__()
-        D_h1 = config.D_h1
-        D_h2 = config.D_h2
-        self.dropout = nn.Dropout(config.dropout)
-        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, bidirectional=True, batch_first=True)
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
+        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, bidirectional=True, batch_first=True)
         self.plinear1 = nn.Linear(D_h1*2, D_h2)
         self.plinear2 = nn.Linear(D_h2, 5)
         self.slinear1 = nn.Linear(D_h1*2, D_h2)
         self.slinear2 = nn.Linear(D_h2, 3)
-
         self.sigmoid = nn.Sigmoid() 
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out, hc = self.lstm(x)
@@ -409,9 +425,12 @@ class biLSTMMultitaskModel(nn.Module):
 
 class LSTMSentimentModel(nn.Module):
 
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         
         super(LSTMSentimentModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)
@@ -428,9 +447,12 @@ class LSTMSentimentModel(nn.Module):
 
 class GRUSentimentModel(nn.Module):
 
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         
         super(GRUSentimentModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
 
         self.lstm = nn.GRU(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)
