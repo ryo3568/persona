@@ -2,8 +2,6 @@ import numpy as np
 import os
 import glob
 import argparse
-import random 
-import string
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -11,26 +9,15 @@ import torch.optim as optim
 from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+import wandb 
+
 from model import LSTMMultitaskModel, GRUMultitaskModel, RNNMultitaskModel, biLSTMMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
-
+import utils
 
 import warnings 
 warnings.simplefilter('ignore')
-
-import wandb 
-
-def randomname(n):
-   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
-
-def get_files():
-    testfiles = []
-    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
-        testfiles.append(os.path.splitext(os.path.basename(f))[0])
-
-    testfiles = sorted(testfiles)
-    return testfiles
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -129,8 +116,10 @@ def train_or_eval_model(model, ploss_function, sloss_function, dataloader, optim
 
 if __name__ == '__main__':
 
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=int, default=0, help='0:RNN, 1:GRU, 2:LSTM, 3:bi-LSTM')
+    parser.add_argument('--model', type=int, default=2, help='0:RNN, 1:GRU, 2:LSTM, 3:bi-LSTM')
+    parser.add_argument('--wandb', action='store_true', default=False)
      
     args = parser.parse_args()
 
@@ -146,10 +135,12 @@ if __name__ == '__main__':
     }
 
     project_name = 'multitask'
-    group_name = randomname(5)
+    group_name = utils.randomname(5)
 
-    testfiles = get_files()
+    testfiles = utils.get_files()
     Trait = ['extr', 'agre', 'cons', 'neur', 'open']
+    Pred = []
+    Label = []
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -177,7 +168,8 @@ if __name__ == '__main__':
         else:
             notes = 'biLSTM'
 
-        wandb.init(project=project_name, group=group_name, config=config, name=testfile, notes=notes)
+        if args.wandb:
+            wandb.init(project=project_name, group=group_name, config=config, name=testfile, notes=notes)
 
         if torch.cuda.is_available():
             model.cuda()
@@ -186,7 +178,8 @@ if __name__ == '__main__':
 
         train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], valid=0.1) 
 
-        best_val_loss, best_loss, best_ploss, best_sloss = None, None, None, None
+        best_val_loss, best_loss, best_ppred, best_plabel, best_ploss, best_sloss \
+            = None, None, None, None, None, None
 
         es = EarlyStopping(patience=10, verbose=1)
 
@@ -197,40 +190,48 @@ if __name__ == '__main__':
 
 
             if best_loss == None or best_val_loss > val_ploss:
-                best_loss, best_ploss, best_sloss = tst_loss, tst_ploss, tst_sloss
+                best_loss, best_ploss, best_sloss, best_ppred, best_plabel \
+                    = tst_loss, tst_ploss, tst_sloss, tst_ppred, tst_plabel
 
                 best_pacc = accuracy_score(tst_plabel, tst_ppred > 0.5)
 
                 best_sacc = accuracy_score(tst_slabel, tst_spred)
 
                 for i, trait in enumerate(Trait):
-                    Acc[trait] = accuracy_score([tst_plabel[i]], [tst_ppred[i] > 0.5])
+                    Acc[trait] = accuracy_score([tst_plabel[i]], [tst_ppred[i] >= 0.5])
 
                 best_val_loss = val_ploss
             
             if es(val_loss):
                 break
 
+            if args.wandb:
+                wandb.log({
+                    "_trn loss": trn_loss,
+                    "_trn ploss": trn_ploss, 
+                    "_trn sloss": trn_sloss,
+                    "_val loss": val_loss,
+                    "_val ploss": val_ploss, 
+                    "_val sloss": val_sloss,
+                })
+
+        if args.wandb:
             wandb.log({
-                "_trn loss": trn_loss,
-                "_trn ploss": trn_ploss, 
-                "_trn sloss": trn_sloss,
-                "_val loss": val_loss,
-                "_val ploss": val_ploss, 
-                "_val sloss": val_sloss,
+                'tst loss': best_loss,
+                'tst ploss': best_ploss, 
+                'tst sloss': best_sloss, 
+                'tst pacc': best_pacc,
+                'tst sacc': best_sacc,
+                '1extr': Acc['extr'],
+                '2agre': Acc['agre'],
+                '3cons': Acc['cons'],
+                '4neur': Acc['neur'],
+                '5open': Acc['open']
             })
 
-        wandb.log({
-            'tst loss': best_loss,
-            'tst ploss': best_ploss, 
-            'tst sloss': best_sloss, 
-            'tst pacc': best_pacc,
-            'tst sacc': best_sacc,
-            '1extr': Acc['extr'],
-            '2agre': Acc['agre'],
-            '3cons': Acc['cons'],
-            '4neur': Acc['neur'],
-            '5open': Acc['open']
-        })
+            wandb.finish()
+    
+        Pred.append(best_ppred.tolist())
+        Label.append(best_plabel.int().tolist())
 
-        wandb.finish()
+    utils.calc_confusion(Pred, Label)

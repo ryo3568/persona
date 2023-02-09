@@ -227,7 +227,7 @@ class RNNMultitaskModel(nn.Module):
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
-    def __init__(self, D_h1, D_h2, dropout):
+    def __init__(self, config):
         super(RNNMultitaskModel, self).__init__()
         D_h1 = config['D_h1'] 
         D_h2 = config['D_h2']

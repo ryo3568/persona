@@ -1,9 +1,5 @@
 import numpy as np
 import argparse
-import os
-import glob 
-import random 
-import string
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -13,23 +9,13 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import LSTMModel, GRUModel
 from dataloader import HazumiDataset
+import utils
 from utils.EarlyStopping import EarlyStopping
 
 import warnings 
 warnings.simplefilter('ignore')
 
 import wandb 
-
-def randomname(n):
-   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
-
-def get_files():
-    testfiles = []
-    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
-        testfiles.append(os.path.splitext(os.path.basename(f))[0])
-
-    testfiles = sorted(testfiles)
-    return testfiles
 
 def get_train_valid_sampler(trainset, valid=0.1):
     size = len(trainset) 
@@ -66,6 +52,8 @@ def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=2, pin_m
 
 def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False):
     Loss = []
+    Pred = []
+    Label = []
 
     assert not train or optimizer!=None 
     if train:
@@ -87,24 +75,31 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
 
         loss = loss_function(pred, persona)
         
+        Pred.append(pred.tolist())
+        Label.append(persona.tolist())
         Loss.append(loss.item())
 
         if train:
             loss.backward()
             optimizer.step() 
 
-
     avg_loss = round(np.sum(Loss)/len(Loss), 4)
 
-    pred = pred.squeeze().cpu() 
+    pred = pred.squeeze().cpu()
     label = persona.squeeze().cpu()
 
-    return avg_loss, pred, label
+    Pred = list(utils.flatten(Pred))
+    Pred = [1 if x >= 0.5 else 0 for x in Pred]
+    Label = list(utils.flatten(Label))
+
+    return avg_loss, Pred, Label
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--finetune', action='store_true', default=False)
+    parser.add_argument('--wandb', action='store_true', default=False)
+    parser.add_argument('--early_stop_num', type=int, default=10, metavar='BS', help='batch size')
 
      
     args = parser.parse_args()
@@ -120,16 +115,18 @@ if __name__ == '__main__':
         "D_h2": 64, 
         "weight_decay": 1e-5,
         "adam_lr": 1e-5,
-        "dropout": 0.6
+        "dropout": 0.6,
+        "early_stop_num": args.early_stop_num
     }
 
     project_name = 'persona'
-    group_name = randomname(5)
+    group_name = utils.randomname(5)
 
-    testfiles = get_files()
+    testfiles = utils.get_files()
     Trait = ['extr', 'agre', 'cons', 'neur', 'open']
-
-    for testfile in tqdm(testfiles, position=0, leave=True):
+    Pred = []
+    Label = []
+    for i, testfile in enumerate(tqdm(testfiles, position=0, leave=True)):
 
         model = GRUModel(config)
 
@@ -140,7 +137,8 @@ if __name__ == '__main__':
 
         Acc = dict.fromkeys(Trait)
 
-        wandb.init(project=project_name, group=group_name, config=config, name=testfile)
+        if args.wandb:
+            wandb.init(project=project_name, group=group_name, config=config, name=testfile)
 
         if args.cuda:
             model.cuda()
@@ -149,44 +147,59 @@ if __name__ == '__main__':
 
         train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], valid=0.1) 
 
-        best_loss, best_val_loss = None, None
+        best_loss, best_val_loss, best_pred, best_label = None, None, None, None
 
-        es = EarlyStopping(patience=10)
+        es = EarlyStopping(patience=config['early_stop_num'])
 
         for epoch in range(config["epochs"]):
-            trn_loss, _, _ = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-            val_loss, _, _ = train_or_eval_model(model, loss_function, valid_loader, epoch)
+            trn_loss, trn_pred, trn_label = train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
+            val_loss, val_pred, val_label = train_or_eval_model(model, loss_function, valid_loader, epoch)
             tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch)
 
 
             if best_loss == None or best_val_loss > val_loss:
-                best_loss = tst_loss
+                best_loss, best_label, best_pred= tst_loss, tst_label, tst_pred
 
-                best_acc = accuracy_score(tst_label, tst_pred > 0.5)
+                best_acc = accuracy_score(tst_label, tst_pred)
 
-                for i, trait in enumerate(Trait):
-                    Acc[trait] = accuracy_score([tst_label[i]], [tst_pred[i] > 0.5])
+                for j, trait in enumerate(Trait):
+                    Acc[trait] = accuracy_score([tst_label[j]], [tst_pred[j]])
+
 
                 best_val_loss = val_loss
 
+            
+            trn_acc = accuracy_score(trn_label, trn_pred)
+            val_acc = accuracy_score(val_label, val_pred)
+
+
             if es(val_loss):
                 break
+                
+            if args.wandb:
+                wandb.log({
+                    "_trn loss": trn_loss,
+                    "_val loss": val_loss,
+                    "trn acc": trn_acc,
+                    'val acc': val_acc
+                })
 
+        if args.wandb:
             wandb.log({
-                "_trn loss": trn_loss,
-                "_val loss": val_loss,
+                'tst loss': best_loss,
+                'acc': best_acc,
+                '1extr': Acc['extr'],
+                '2agre': Acc['agre'],
+                '3cons': Acc['cons'],
+                '4neur': Acc['neur'],
+                '5open': Acc['open']
             })
 
+            wandb.finish()
 
-        wandb.log({
-            'tst loss': best_loss,
-            'acc': best_acc,
-            '1extr': Acc['extr'],
-            '2agre': Acc['agre'],
-            '3cons': Acc['cons'],
-            '4neur': Acc['neur'],
-            '5open': Acc['open']
-        })
+        Pred.append(best_pred)
+        Label.append(best_label)
 
-        wandb.finish()
+    utils.calc_confusion(Pred, Label)
+
 

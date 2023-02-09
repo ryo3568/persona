@@ -3,7 +3,6 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence 
 import pickle 
 import pandas as pd 
-import numpy as np 
 from utils.Standardizing import Standardizing
 
 
@@ -14,18 +13,18 @@ class HazumiDataset(Dataset):
 
     """
 
-    def __init__(self, test_file, train=True, scaler=None):
+    def __init__(self, test_file, n_cluster, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features_bert_standard.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features_bert_cluster' + str(n_cluster) + '.pkl'
 
-        self.SS_ternary, self.TS_ternary, self.sentiment, self.third_sentiment, self.persona, self.third_persona,\
-        self.plabel, self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+        self.TS_ternary, self.third_sentiment,self.third_persona,\
+        self.plabel, self.pcluster, self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
 
         if train:
             for x in self.vid:
-                if x != test_file:
+                if x != test_file and self.pcluster[x] == self.pcluster[test_file]:
                     self.keys.append(x) 
             self.scaler_audio = Standardizing()
             self.scaler_visual = Standardizing()
