@@ -1,19 +1,19 @@
-python sentiment.py --n_cluster 2 --wandb
-python sentiment.py --n_cluster 3 --wandb
-python sentiment.py --n_cluster 4 --wandb
+python persona.py --wandb 
+python sentiment.py --wandb
+python multitask.py --wandb
 
-python sentiment.py --n_cluster 2 --wandb
-python sentiment.py --n_cluster 3 --wandb
-python sentiment.py --n_cluster 4 --wandb
+python persona.py --wandb 
+python sentiment.py --wandb
+python multitask.py --wandb
 
-python sentiment.py --n_cluster 2 --wandb
-python sentiment.py --n_cluster 3 --wandb
-python sentiment.py --n_cluster 4 --wandb
+python persona.py --wandb 
+python sentiment.py --wandb
+python multitask.py --wandb
 
-python sentiment.py --n_cluster 2 --wandb
-python sentiment.py --n_cluster 3 --wandb
-python sentiment.py --n_cluster 4 --wandb
+python persona.py --wandb 
+python sentiment.py --wandb
+python multitask.py --wandb
 
-python sentiment.py --n_cluster 2 --wandb
-python sentiment.py --n_cluster 3 --wandb
-python sentiment.py --n_cluster 4 --wandb
+python persona.py --wandb 
+python sentiment.py --wandb
+python multitask.py --wandb

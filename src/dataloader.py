@@ -35,7 +35,6 @@ class HazumiDataset(Dataset):
         
     def __getitem__(self, index):
         vid = self.keys[index] 
-       
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\

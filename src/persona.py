@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+import random
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -66,11 +67,17 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, tp_bianry, ts_ternary =\
+        text, visual, audio, tp_bianry, _ =\
         [d.cuda() for d in data[:-1]] if args.cuda else data[:-1]
 
         data = torch.cat((text, visual, audio), dim=-1)
-   
+
+        seq_len = data.shape[1]
+        start_index = random.randint(0, seq_len - args.window_size)
+
+        data = data[:, start_index: start_index+args.window_size, :]
+
+        
         pred = model(data)
 
         loss = loss_function(pred, tp_bianry)
