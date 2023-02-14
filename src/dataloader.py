@@ -7,24 +7,19 @@ from utils.Standardizing import Standardizing
 
 
 class HazumiDataset(Dataset):
-    """マルチタスク学習用データセット
- 
-    説明文
 
-    """
-
-    def __init__(self, test_file, n_cluster, train=True, scaler=None):
+    def __init__(self, test_file, window_size=-1, step_size=1, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features_bert_cluster' + str(n_cluster) + '.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
-        self.TS_ternary, self.third_sentiment,self.third_persona,\
-        self.plabel, self.pcluster, self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+        self.TS, self.TS_ternary, self.TP, self.TP_binary, self.TP_cluster, \
+        self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
 
         if train:
             for x in self.vid:
-                if x != test_file and self.pcluster[x] == self.pcluster[test_file]:
+                if x != test_file:
                     self.keys.append(x) 
             self.scaler_audio = Standardizing()
             self.scaler_visual = Standardizing()
@@ -44,7 +39,7 @@ class HazumiDataset(Dataset):
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor(self.plabel[vid]),\
+            torch.FloatTensor(self.TP_binary[vid]),\
             torch.LongTensor(self.TS_ternary[vid]),\
             vid
 
@@ -53,22 +48,23 @@ class HazumiDataset(Dataset):
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
+
         return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
 
 
 class HazumiDataset_sweep(Dataset):
     """マルチタスク学習用データセット
  
-    説明文
+    Sweep用のデータセット
 
     """
 
     def __init__(self):
     
-        path = '../data/Hazumi_features/Hazumi1911_features_bert_standard.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
 
-        self.SS_ternary, self.TS_ternary, self.sentiment, self.third_sentiment, self.persona, self.third_persona,\
-        self.plabel, self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+        self.TS, self.TS_ternary, self.TP, self.TP_binary, self.TP_cluster, \
+        self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
 
@@ -89,7 +85,7 @@ class HazumiDataset_sweep(Dataset):
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor(self.plabel[vid]),\
+            torch.FloatTensor(self.TP_binary[vid]),\
             torch.LongTensor(self.TS_ternary[vid]),\
             vid
 

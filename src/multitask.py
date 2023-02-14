@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import wandb 
 
-from model import LSTMMultitaskModel, GRUMultitaskModel, RNNMultitaskModel, biLSTMMultitaskModel
+from model import LSTMMultitaskModel
 from dataloader import HazumiDataset
 from utils.EarlyStopping import EarlyStopping
 import utils
@@ -20,17 +20,18 @@ import warnings
 warnings.simplefilter('ignore')
 
 
-def get_train_valid_sampler(trainset, valid=0.1):
+def get_train_valid_sampler(trainset):
     size = len(trainset) 
     idx = list(range(size)) 
-    split = int(valid*size) 
+    split = int(0.2*size) 
+    np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=32, valid=0.1, num_workers=2, pin_memory=False):
+def get_Hazumi_loaders(test_file, batch_size=32, num_workers=2, pin_memory=False):
     trainset = HazumiDataset(test_file)
     testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
 
-    train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
+    train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
     train_loader = DataLoader(trainset, 
                               batch_size=batch_size,
@@ -118,7 +119,6 @@ if __name__ == '__main__':
 
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=int, default=2, help='0:RNN, 1:GRU, 2:LSTM, 3:bi-LSTM')
     parser.add_argument('--wandb', action='store_true', default=False)
      
     args = parser.parse_args()
@@ -144,14 +144,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        if args.model == 0:
-            model = RNNMultitaskModel(config)
-        elif args.model == 1:
-            model = GRUMultitaskModel(config)
-        elif args.model == 2:
-            model = LSTMMultitaskModel(config)
-        else:
-            model = biLSTMMultitaskModel(config)
+        model = LSTMMultitaskModel(config)
 
         # model = GRUMultitaskModel(config["D_h1"], config["D_h2"], config["dropout"])
         pLoss_function = nn.BCELoss() # 性格特性
@@ -159,24 +152,15 @@ if __name__ == '__main__':
 
         Acc = dict.fromkeys(Trait)
 
-        if args.model == 0:
-            notes = 'RNN'
-        elif args.model == 1:
-            notes = 'GRU'
-        elif args.model == 2:
-            notes = 'LSTM'
-        else:
-            notes = 'biLSTM'
-
         if args.wandb:
-            wandb.init(project=project_name, group=group_name, config=config, name=testfile, notes=notes)
+            wandb.init(project=project_name, group=group_name, config=config, name=testfile)
 
         if torch.cuda.is_available():
             model.cuda()
 
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
-        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], valid=0.1) 
+        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"]) 
 
         best_val_loss, best_loss, best_ppred, best_plabel, best_ploss, best_sloss \
             = None, None, None, None, None, None

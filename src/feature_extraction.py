@@ -16,18 +16,11 @@ import utils
 from transformers import logging
 logging.set_verbosity_error()
 
-# 本人にアノテーションされた性格特性スコアの算出
-def calc_persona(filename, normalized=False):
-    df = pd.read_excel('../data/Hazumi1911/questionnaire/1911questionnaires.xlsx', sheet_name=4, index_col=0, header=1)
-    data = df.loc[filename, :].values.tolist()
-    res = [data[0]+(8-data[5]), (8-data[1])+data[6], data[2]+(8-data[7]), data[3]+(8-data[8]), data[4]+(8-data[9])]
-    if normalized:
-        return [(i-2)/12 for i in res]
-    else:
-        return res
 
-# 第三者にアノテーションされた性格特性スコアの算出
 def calc_thirdpersona(filename, normalized=False):
+    """
+    アノテータの質問回答から性格特性スコアを算出
+    """
     df = pd.read_excel('../data/Hazumi1911/questionnaire/220818thirdbigfive-Hazumi1911.xlsx', sheet_name=5, header=1, index_col=0)
     data = df.loc[filename].values.tolist()
     res = [data[5], data[13], data[21], data[29], data[37]]
@@ -35,6 +28,7 @@ def calc_thirdpersona(filename, normalized=False):
         return [(i-2)/12 for i in res]
     else:
         return res
+
 
 def preprocess(text):
     """ 
@@ -44,6 +38,7 @@ def preprocess(text):
     text = text.replace('|', '')
 
     return text
+
 
 def embedding(sentences):
     # 前処理
@@ -72,6 +67,7 @@ def embedding(sentences):
     vecs = last_hidden_states[:, 0, :]
 
     return vecs.tolist()
+
 
 def eaf_to_df( eaf: pympi.Elan.Eaf ) -> pd.DataFrame:
     tier_names = list( eaf.tiers.keys() )
@@ -114,224 +110,70 @@ def extract_sentence(filename, start):
 
     return res
 
+def making_TP_binary(TP, vid, standard=False):
+    """
+    性格特性スコアを2クラスに分類
+    """
+    TP_binary = {}
+    df = pd.DataFrame.from_dict(TP, orient='index')
+
+    if standard:
+        sc = StandardScaler()
+        df = sc.fit_transform(df)
+        df = pd.DataFrame(df, index=vid) 
+        df = (df >= 0 )* 1
+    else:
+        df = (df >= 8) * 1
+
+    for id in vid:
+        TP_binary[id] = df.loc[id, :].tolist()
+
+    return TP_binary
+
 def feature_extract():
-    audio = {}
+
     text = {}
+    bert_text = {}
+    audio = {}
     visual = {} 
 
-    third_persona = {}
-    # persona = {}
+    TP = {}
+    TP_norm = {}
+    TP_binary = None 
+    TP_binary_stand = None
+    TP_cluster = None
+
     TS_ternary = {}
-    # SS_ternary = {}
-    third_sentiment = {}
-    # sentiment = {}
+    TS = {}
 
     vid = []
 
     for file_path in tqdm(sorted(files)):
         filename = os.path.basename(file_path).split('.', 1)[0]
         df = pd.read_csv(file_path)
+        start = df['start(exchange)[ms]'].values.tolist()
 
         vid.append(filename)
+        bert_text[filename] = extract_sentence(filename, start)
         text[filename] = df.loc[:, 'word#0001':'su'].values.tolist()
         audio[filename] = df.loc[:, 'pcm_RMSenergy_sma_max':'F0_sma_de_kurtosis'].values.tolist()
         visual[filename] = df.loc[:, '17_acceleration_max':'AU45_c_mean'].values.tolist()
 
-        # persona[filename] = calc_persona(filename)
-        third_persona[filename] = calc_thirdpersona(filename)
-        TS_ternary[filename] = df.loc[:, 'TS_ternary'].values.tolist()
-        # SS_ternary[filename] = df.loc[:, 'SS_ternary'].values.tolist()
-        third_sentiment[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
-        # sentiment[filename] = df.loc[:, 'SS'].values.tolist()
+        TP[filename] = calc_thirdpersona(filename)
+        TP_norm[filename] = calc_thirdpersona(filename, True)
+        TS_ternary[filename] = df.loc[:, 'TS_ternary'].astype(int).values.tolist()
+        TS[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
 
-    # ファイル書き込み
+    TP_binary = making_TP_binary(TP, vid)
+    TP_binary_stand = making_TP_binary(TP, vid, standard=True)
+
+    TP_cluster = utils.clustering(vid, TP, n_clusters=4)
+
     with open(feature_path + 'Hazumi1911_features.pkl', mode='wb') as f:
-        pickle.dump((TS_ternary, third_sentiment, third_persona, text, audio, visual, vid), f)
-
-def feature_extract_bert():
-    # 言語特徴量をBERTから抽出
-    audio = {}
-    text = {}
-    visual = {} 
-
-    third_persona = {}
-    # persona = {}
-    TS_ternary = {}
-    # SS_ternary = {}
-    third_sentiment = {}
-    # sentiment = {}
-
-    vid = []
-
-    for file_path in tqdm(sorted(files)):
-        filename = os.path.basename(file_path).split('.', 1)[0]
-        df = pd.read_csv(file_path)
-        start = df['start(exchange)[ms]'].values.tolist()
-
-        vid.append(filename)
-        text[filename] = extract_sentence(filename, start)
-        audio[filename] = df.loc[:, 'pcm_RMSenergy_sma_max':'F0_sma_de_kurtosis'].values.tolist()
-        visual[filename] = df.loc[:, '17_acceleration_max':'AU45_c_mean'].values.tolist()
-
-        # persona[filename] = calc_persona(filename)
-        third_persona[filename] = calc_thirdpersona(filename)
-        TS_ternary[filename] = df.loc[:, 'TS_ternary'].values.tolist()
-        # SS_ternary[filename] = df.loc[:, 'SS_ternary'].values.tolist()
-        third_sentiment[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
-        # sentiment[filename] = df.loc[:, 'SS'].values.tolist()
-
-    # ファイル書き込み
-    with open(feature_path + 'Hazumi1911_features_bert.pkl', mode='wb') as f:
-        pickle.dump((TS_ternary, third_sentiment, third_persona, text, audio, visual, vid), f)
-
-def feature_extract_bert_norm():
-    # 言語特徴量をBERTから抽出 && 性格特性スコア正規化
-    audio = {}
-    text = {}
-    visual = {} 
-
-    third_persona = {}
-    # persona = {}
-    TS_ternary = {}
-    # SS_ternary = {}
-    third_sentiment = {}
-    # sentiment = {}
-
-    vid = []
-
-    for file_path in tqdm(sorted(files)):
-        filename = os.path.basename(file_path).split('.', 1)[0]
-        df = pd.read_csv(file_path)
-        start = df['start(exchange)[ms]'].values.tolist()
-
-        vid.append(filename)
-        text[filename] = extract_sentence(filename, start)
-        audio[filename] = df.loc[:, 'pcm_RMSenergy_sma_max':'F0_sma_de_kurtosis'].values.tolist()
-        visual[filename] = df.loc[:, '17_acceleration_max':'AU45_c_mean'].values.tolist()
-
-        # persona[filename] = calc_persona(filename, True)
-        third_persona[filename] = calc_thirdpersona(filename, True)
-        TS_ternary[filename] = df.loc[:, 'TS_ternary'].values.tolist()
-        # SS_ternary[filename] = df.loc[:, 'SS_ternary'].values.tolist()
-        third_sentiment[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
-        # sentiment[filename] = df.loc[:, 'SS'].values.tolist()
-
-    # ファイル書き込み
-    with open(feature_path + 'Hazumi1911_features_bert_norm.pkl', mode='wb') as f:
-        pickle.dump((TS_ternary, third_sentiment, third_persona, text, audio, visual, vid), f)
-
-
-def feature_extract_bert_stand(standard=False):
-    # 言語特徴量をBERTから抽出
-    audio = {}
-    text = {}
-    visual = {} 
-
-    third_persona = {}
-    # persona = {}
-    TS_ternary = {}
-    # SS_ternary = {}
-    third_sentiment = {}
-    # sentiment = {}
-
-    vid = []
-
-    for file_path in tqdm(sorted(files)):
-        filename = os.path.basename(file_path).split('.', 1)[0]
-        df = pd.read_csv(file_path)
-        start = df['start(exchange)[ms]'].values.tolist()
-
-        vid.append(filename)
-        text[filename] = extract_sentence(filename, start)
-        audio[filename] = df.loc[:, 'pcm_RMSenergy_sma_max':'F0_sma_de_kurtosis'].values.tolist()
-        visual[filename] = df.loc[:, '17_acceleration_max':'AU45_c_mean'].values.tolist()
-
-        # persona[filename] = calc_persona(filename)
-        third_persona[filename] = calc_thirdpersona(filename)
-        TS_ternary[filename] = df.loc[:, 'TS_ternary'].values.tolist()
-        # SS_ternary[filename] = df.loc[:, 'SS_ternary'].values.tolist()
-        third_sentiment[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
-        # sentiment[filename] = df.loc[:, 'SS'].values.tolist()
-
-    plabel = {}
-    df = pd.DataFrame.from_dict(third_persona, orient="index")
-
-    if standard:
-        sc = StandardScaler()
-        df = sc.fit_transform(df)
-        df = pd.DataFrame(df, index=vid) 
-        df = (df >= 0 )* 1
-    else:
-        df = (df >= 8) * 1
-
-    for id in vid:
-        plabel[id] = df.loc[id, :].tolist()
-    
-    for k, v in TS_ternary.items():
-        TS_ternary[k] = [int(x) for x in v]
-
-    with open(feature_path + 'Hazumi1911_features_bert_standard.pkl', mode='wb') as f:
-        pickle.dump((TS_ternary, third_sentiment, third_persona, plabel, text, audio, visual, vid), f)
-
-
-def feature_extract_bert_cluster(n_cluster=4, standard=False):
-    # 言語特徴量をBERTから抽出
-    audio = {}
-    text = {}
-    visual = {} 
-
-    third_persona = {}
-    # persona = {}
-    TS_ternary = {}
-    # SS_ternary = {}
-    third_sentiment = {}
-    # sentiment = {}
-
-    vid = []
-
-    for file_path in tqdm(sorted(files)):
-        filename = os.path.basename(file_path).split('.', 1)[0]
-        df = pd.read_csv(file_path)
-        start = df['start(exchange)[ms]'].values.tolist()
-
-        vid.append(filename)
-        text[filename] = extract_sentence(filename, start)
-        audio[filename] = df.loc[:, 'pcm_RMSenergy_sma_max':'F0_sma_de_kurtosis'].values.tolist()
-        visual[filename] = df.loc[:, '17_acceleration_max':'AU45_c_mean'].values.tolist()
-
-        # persona[filename] = calc_persona(filename)
-        third_persona[filename] = calc_thirdpersona(filename)
-        TS_ternary[filename] = df.loc[:, 'TS_ternary'].values.tolist()
-        # SS_ternary[filename] = df.loc[:, 'SS_ternary'].values.tolist()
-        third_sentiment[filename] = df.loc[:, 'TS1':'TS5'].mean(axis='columns').values.tolist()
-        # sentiment[filename] = df.loc[:, 'SS'].values.tolist()
-
-    cluster = utils.clustering(third_persona, n_cluster)
-    pcluster = dict(zip(vid, cluster))
-
-    plabel = {}
-    df = pd.DataFrame.from_dict(third_persona, orient="index")
-
-    if standard:
-        sc = StandardScaler()
-        df = sc.fit_transform(df)
-        df = pd.DataFrame(df, index=vid) 
-        df = (df >= 0 )* 1
-    else:
-        df = (df >= 8) * 1
-
-    for id in vid:
-        plabel[id] = df.loc[id, :].tolist()
-
-    for k, v in TS_ternary.items():
-        TS_ternary[k] = [int(x) for x in v]
-
-    # ファイル書き込み
-    with open(feature_path + 'Hazumi1911_features_bert_cluster' + str(n_cluster) + '.pkl', mode='wb') as f:
-        pickle.dump((TS_ternary, third_sentiment, third_persona, plabel, pcluster, text, audio, visual, vid), f)
-
+        pickle.dump((TS, TS_ternary, TP, TP_binary_stand, TP_cluster, bert_text, audio, visual, vid), f)
 
 if __name__ == '__main__':
+
     dumpfile_path = '../data/Hazumi1911/dumpfiles/*'
     files = glob.glob(dumpfile_path)
     feature_path = '../data/Hazumi_features/'
@@ -346,8 +188,4 @@ if __name__ == '__main__':
     # 学習済みモデルの読み込み
     model = BertModel.from_pretrained("cl-tohoku/bert-base-japanese-whole-word-masking").to(device)
 
-    # feature_extract()
-    # feature_extract_bert()　# 言語特徴量としてBERTのエンコーディングを利用
-    # feature_extract_bert_norm() # 性格特性スコアを[0,1]に正規化
-    # feature_extract_bert_stand() # 性格特性スコアを標準化し、0以上と未満の2クラスに分類
-    feature_extract_bert_cluster(n_cluster=2)
+    feature_extract()

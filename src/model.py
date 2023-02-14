@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
@@ -28,30 +27,61 @@ class LSTMModel(nn.Module):
 
         return y
 
-class GRUModel(nn.Module):
+class LSTMMultitaskModel(nn.Module):
     """マルチタスク用LSTMモデル
 
     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
     """
     def __init__(self, config):
-        super(GRUModel, self).__init__()
+        super(LSTMMultitaskModel, self).__init__()
         D_h1 = config['D_h1']
         D_h2 = config['D_h2']
         dropout = config['dropout']
 
-        self.lstm = nn.GRU(input_size=1218, hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2) # linear for sentiment
-        self.plinear = nn.Linear(D_h2, 5)
-        self.dropout = nn.Dropout(dropout)
+        self.lstm = nn.LSTM(1218, hidden_size=D_h1, batch_first=True)
+        self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
+        self.slinear2 = nn.Linear(D_h2, 3)
+        self.plinear1 = nn.Linear(D_h1, D_h2)
+        self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
         self.sigmoid = nn.Sigmoid()
-
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out, _ = self.lstm(x)
-        h = F.relu(self.linear(out[:, -1, :]))
+
+        # 心象推定
+        hs = F.relu(self.slinear1(out))
+        hs = self.dropout(hs)
+        ys = self.slinear2(hs)
+
+        # 性格特性推定
+        hp = F.relu(self.plinear1(out[:, -1, :]))
+        hp = self.dropout(hp)
+        hp = self.plinear2(hp)
+        yp = self.sigmoid(hp)
+
+        return yp, ys
+
+
+class LSTMSentimentModel(nn.Module):
+
+    def __init__(self, config):
+        
+        super(LSTMSentimentModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
+
+        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
+        self.linear = nn.Linear(D_h1, D_h2)
+        self.slinear = nn.Linear(D_h2, 3)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        h = F.relu(self.linear(out))
         h = self.dropout(h)
-        h = self.plinear(h)
-        y = self.sigmoid(h)
+        y = self.slinear(h)
 
         return y
 
@@ -151,113 +181,6 @@ class GRUModel(nn.Module):
 #         y = self.linear2(h)
 #         return y
 
-class LSTMMultitaskModel(nn.Module):
-    """マルチタスク用LSTMモデル
-
-    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
-    """
-    def __init__(self, config):
-        super(LSTMMultitaskModel, self).__init__()
-        D_h1 = config['D_h1']
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.LSTM(1218, hidden_size=D_h1, batch_first=True)
-        self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
-        self.slinear2 = nn.Linear(D_h2, 3)
-        self.plinear1 = nn.Linear(D_h1, D_h2)
-        self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
-        self.sigmoid = nn.Sigmoid()
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-
-        # 心象推定
-        hs = F.relu(self.slinear1(out))
-        hs = self.dropout(hs)
-        ys = self.slinear2(hs)
-
-        # 性格特性推定
-        hp = F.relu(self.plinear1(out[:, -1, :]))
-        hp = self.dropout(hp)
-        hp = self.plinear2(hp)
-        yp = self.sigmoid(hp)
-
-        return yp, ys
-
-class GRUMultitaskModel(nn.Module):
-    """マルチタスク用LSTMモデル
-
-    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
-    """
-    def __init__(self, config):
-        super(GRUMultitaskModel, self).__init__()
-        D_h1 = config['D_h1'] 
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.GRU(1218, hidden_size=D_h1, batch_first=True)
-        self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
-        self.slinear2 = nn.Linear(D_h2, 3)
-        self.plinear1 = nn.Linear(D_h1, D_h2)
-        self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
-        self.sigmoid = nn.Sigmoid()
-        self.dropout = nn.Dropout(dropout)
-
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-
-        # 心象推定
-        hs = F.relu(self.slinear1(out))
-        hs = self.dropout(hs)
-        ys = self.slinear2(hs)
-
-        # 性格特性推定
-        hp = F.relu(self.plinear1(out[:, -1, :]))
-        hp = self.dropout(hp)
-        hp = self.plinear2(hp)
-        yp = self.sigmoid(hp)
-
-        return yp, ys
-
-class RNNMultitaskModel(nn.Module):
-    """マルチタスク用LSTMモデル
-
-    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
-    """
-    def __init__(self, config):
-        super(RNNMultitaskModel, self).__init__()
-        D_h1 = config['D_h1'] 
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.RNN(1218, hidden_size=D_h1, batch_first=True)
-        self.slinear1 = nn.Linear(D_h1, D_h2) # linear for sentiment
-        self.slinear2 = nn.Linear(D_h2, 3)
-        self.plinear1 = nn.Linear(D_h1, D_h2)
-        self.plinear2 = nn.Linear(D_h2, 5) # linear for personality trait
-        self.sigmoid = nn.Sigmoid()
-        self.dropout = nn.Dropout(dropout)
-
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-
-        # 心象推定
-        hs = F.relu(self.slinear1(out))
-        hs = self.dropout(hs)
-        ys = self.slinear2(hs)
-
-        # 性格特性推定
-        hp = F.relu(self.plinear1(out[:, -1, :]))
-        hp = self.dropout(hp)
-        hp = self.plinear2(hp)
-        yp = self.sigmoid(hp)
-
-        return yp, ys
-
 
 # class LSTMMultitaskModel(nn.Module):
 #     """マルチタスク用LSTMモデル
@@ -349,40 +272,40 @@ class RNNMultitaskModel(nn.Module):
 #         return yp, ys
 
 
-class biLSTMMultitaskModel(nn.Module):
-    """マルチタスク用LSTMモデル
+# class biLSTMMultitaskModel(nn.Module):
+#     """マルチタスク用LSTMモデル
 
-    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
-    """
+#     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
+#     """
 
-    def __init__(self, config):
-        super(biLSTMMultitaskModel, self).__init__()
-        D_h1 = config['D_h1']
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
+#     def __init__(self, config):
+#         super(biLSTMMultitaskModel, self).__init__()
+#         D_h1 = config['D_h1']
+#         D_h2 = config['D_h2']
+#         dropout = config['dropout']
 
-        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, bidirectional=True, batch_first=True)
-        self.plinear1 = nn.Linear(D_h1*2, D_h2)
-        self.plinear2 = nn.Linear(D_h2, 5)
-        self.slinear1 = nn.Linear(D_h1*2, D_h2)
-        self.slinear2 = nn.Linear(D_h2, 3)
-        self.sigmoid = nn.Sigmoid() 
-        self.dropout = nn.Dropout(dropout)
+#         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, bidirectional=True, batch_first=True)
+#         self.plinear1 = nn.Linear(D_h1*2, D_h2)
+#         self.plinear2 = nn.Linear(D_h2, 5)
+#         self.slinear1 = nn.Linear(D_h1*2, D_h2)
+#         self.slinear2 = nn.Linear(D_h2, 3)
+#         self.sigmoid = nn.Sigmoid() 
+#         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
-        out, hc = self.lstm(x)
+#     def forward(self, x):
+#         out, hc = self.lstm(x)
 
-        hc = torch.cat([hc[0][0], hc[0][1]], dim=-1)
+#         hc = torch.cat([hc[0][0], hc[0][1]], dim=-1)
 
-        hp = F.relu(self.plinear1(hc))
-        hs = F.relu(self.slinear1(out))
-        hp = self.dropout(hp)
-        hs = self.dropout(hs)
-        hp = self.plinear2(hp)
-        ys = self.slinear2(hs)
-        yp = self.sigmoid(hp)
+#         hp = F.relu(self.plinear1(hc))
+#         hs = F.relu(self.slinear1(out))
+#         hp = self.dropout(hp)
+#         hs = self.dropout(hs)
+#         hp = self.plinear2(hp)
+#         ys = self.slinear2(hs)
+#         yp = self.sigmoid(hp)
 
-        return yp, ys
+#         return yp, ys
 
 # class FNNModel(nn.Module):
 
@@ -402,70 +325,6 @@ class biLSTMMultitaskModel(nn.Module):
 
 #         return y
 
-# class FNNMultitaskModel(nn.Module):
-
-#     def __init__(self, D_i, D_h, D_o, n_classes = 5, dropout=0.5):
-#         super(FNNMultitaskModel, self).__init__() 
-#         self.fc1 = nn.Linear(D_i, D_h) 
-#         self.fc2 = nn.Linear(D_h, D_o) 
-#         self.fc_persona = nn.Linear(D_o, 5)
-#         self.fc_sentiment = nn.Linear(D_o, 3)
-#         self.dropout = nn.Dropout(dropout)
-
-#     def forward(self, x):
-#         h  = F.relu(self.fc1(x)) 
-#         h = self.dropout(h)
-#         h = F.relu(self.fc2(h)) 
-#         h = self.dropout(h)
-#         y_persona = self.fc_persona(h) 
-#         y_sentiment = self.fc_sentiment(h)
-
-#         return y_persona, y_sentiment
-
-
-class LSTMSentimentModel(nn.Module):
-
-    def __init__(self, config):
-        
-        super(LSTMSentimentModel, self).__init__()
-        D_h1 = config['D_h1']
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2)
-        self.slinear = nn.Linear(D_h2, 3)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        h = F.relu(self.linear(out))
-        h = self.dropout(h)
-        y = self.slinear(h)
-
-        return y
-
-class GRUSentimentModel(nn.Module):
-
-    def __init__(self, config):
-        
-        super(GRUSentimentModel, self).__init__()
-        D_h1 = config['D_h1']
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.GRU(input_size=1218, hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2)
-        self.slinear = nn.Linear(D_h2, 3)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        h = F.relu(self.linear(out))
-        h = self.dropout(h)
-        y = self.slinear(h)
-
-        return y
 
 # class biLSTMSentimentModel(nn.Module):
 

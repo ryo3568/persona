@@ -11,7 +11,7 @@ import torch.optim as optim
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMSentimentModel, GRUSentimentModel
+from model import LSTMSentimentModel
 from dataloader import HazumiDataset
 import utils
 from utils.EarlyStopping import EarlyStopping
@@ -22,18 +22,16 @@ warnings.simplefilter('ignore')
 import wandb 
 
 
-
 def get_train_valid_sampler(trainset):
     size = len(trainset) 
     idx = list(range(size)) 
-    split = int(0.1*size) 
-    if split == 0:
-        split = 1
+    split = int(0.2*size) 
+    np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=32, n_cluster=4, num_workers=2, pin_memory=False):
-    trainset = HazumiDataset(test_file, n_cluster)
-    testset = HazumiDataset(test_file, n_cluster, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(test_file, batch_size=32, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(test_file)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
@@ -58,7 +56,7 @@ def get_Hazumi_loaders(test_file, batch_size=32, n_cluster=4, num_workers=2, pin
     return train_loader, valid_loader, test_loader 
 
 
-def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None, train=False):
+def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=False):
     Loss = [] 
 
     assert not train or optimizer!=None 
@@ -70,7 +68,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, _, s_ternary =\
+        text, visual, audio, _, ts_ternary =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
         data = torch.cat((text, visual, audio), dim=-1)
@@ -78,7 +76,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         
         pred = model(data)
 
-        label = s_ternary.view(-1)
+        label = ts_ternary.view(-1)
         pred = pred.view(-1, 3)
 
         loss = loss_function(pred, label)
@@ -104,7 +102,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--pretrain', action='store_true', default=False)
     parser.add_argument('--wandb', action='store_true', default=False)
-    parser.add_argument('--n_cluster', type=int, default=4)
      
     args = parser.parse_args()
 
@@ -117,7 +114,6 @@ if __name__ == '__main__':
         "weight_decay": 1e-5,
         "adam_lr": 1e-5,
         "dropout": 0.6,
-        "n_cluster": args.n_cluster
     }
 
     project_name = 'sentiment'
@@ -127,7 +123,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = GRUSentimentModel(config)
+        model = LSTMSentimentModel(config)
         loss_function = nn.CrossEntropyLoss() 
 
         if args.wandb:
@@ -138,16 +134,16 @@ if __name__ == '__main__':
 
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
-        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"], n_cluster=args.n_cluster) 
+        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"]) 
 
         best_loss, best_acc,  best_val_loss, best_param = None, None, None, None
 
         es = EarlyStopping(patience=10, verbose=1)
 
         for epoch in range(config["epochs"]):
-            trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, epoch, optimizer, True)
-            val_loss, _, _= train_or_eval_model(model, loss_function, valid_loader, epoch)
-            tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader, epoch)
+            trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, optimizer, True)
+            val_loss, _, _= train_or_eval_model(model, loss_function, valid_loader)
+            tst_loss, tst_pred, tst_label = train_or_eval_model(model, loss_function, test_loader)
 
 
             if best_loss == None or best_val_loss > val_loss:

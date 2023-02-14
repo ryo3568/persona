@@ -25,6 +25,9 @@ def get_files():
     testfiles = sorted(testfiles)
     return testfiles
 
+def get_traits():
+    return ['外向性', '協調性', '勤勉性', '神経症傾向', '開放性']
+
 def calc_confusion(pred, label):
     Pred = [[], [], [], [], []]
     Label = [[], [], [], [], []]
@@ -47,14 +50,17 @@ def flatten(l):
         else:
             yield el
 
-def clustering(data, n_clusters=4):
+def clustering(vid, data, n_clusters=4):
+    TP_cluster = {}
     trait_name = ["外向性", "協調性", "勤勉性", "神経症傾向", "開放性"]
     df = pd.DataFrame.from_dict(data, orient='index', columns=trait_name)
 
-    model = KMeans(n_clusters=n_clusters, random_state=1)
-    model.fit(df) 
-    cluster = model.labels_ 
+    for i in range(1, len(vid) + 1):
+        model = KMeans(n_clusters=i, n_init=10, random_state=1)
+        model.fit(df) 
+        cluster = model.labels_
+        TP_cluster[i] = dict(zip(vid, cluster))
 
-    return cluster
+    return TP_cluster
 
 
