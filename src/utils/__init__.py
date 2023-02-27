@@ -1,3 +1,4 @@
+import torch
 import random 
 import string 
 import os
@@ -62,5 +63,12 @@ def clustering(vid, data, n_clusters=4):
         TP_cluster[i] = dict(zip(vid, cluster))
 
     return TP_cluster
+
+
+def rolling_window(x, window_size, step_size):
+    seq_len = x.shape[1]
+    if window_size == -1:
+        window_size = seq_len
+    return torch.stack([x[:,i: i+window_size, :] for i in range(0, seq_len-window_size+1, step_size)])
 
 
