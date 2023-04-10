@@ -25,9 +25,9 @@ def get_train_valid_sampler(trainset):
     np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=1, window_size=-1, step_size=1, num_workers=2, pin_memory=False):
-    trainset = HazumiDataset(test_file, window_size, step_size)
-    testset = HazumiDataset(test_file, window_size, step_size, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(test_file, batch_size=1, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(test_file)
+    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
@@ -54,9 +54,6 @@ def get_Hazumi_loaders(test_file, batch_size=1, window_size=-1, step_size=1, num
 
 def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=False):
     Loss = []
-    Pred = []
-    Label = []
-
     assert not train or optimizer!=None 
     if train:
         model.train() 
@@ -72,27 +69,14 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 
         data = torch.cat((text, visual, audio), dim=-1)
 
-        # seq_len = data.shape[1]
-        # start_index = random.randint(0, seq_len - args.window_size)
-
-        # data = data[:, start_index: start_index+args.window_size, :]
-
-        data = utils.rolling_window(data, args.window_size, args.step_size)
-
         loss = 0
         preds = []
 
-        for d in data:
-            pred = model(d)
-            loss += loss_function(pred, tp_binary)
-            preds.append(pred)
-        
-        preds = torch.concat(preds)
-        preds = torch.mean(preds, dim=0)
+        pred = model(data)
 
-        loss /= len(data)
-        Pred.append(preds.tolist())
-        Label.append(tp_binary.tolist())
+        tp_binary = tp_binary.view(-1)
+        loss += loss_function(pred, tp_binary)
+
         Loss.append(loss.item())
 
         if train:
@@ -101,22 +85,16 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 
     avg_loss = round(np.sum(Loss)/len(Loss), 4)
 
-    Pred = list(utils.flatten(Pred))
-    Pred = [1 if x >= 0.5 else 0 for x in Pred]
-    Label = list(utils.flatten(Label))
-
-    return avg_loss, Pred, Label
+    return avg_loss, pred, tp_binary
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--finetune', action='store_true', default=False)
     parser.add_argument('--wandb', action='store_true', default=False)
-    parser.add_argument('--early_stop_num', type=int, default=10, metavar='BS', help='batch size')
-    parser.add_argument('--window_size', type=int, default=-1)
-    parser.add_argument('--step_size', type=int, default=1)
+    parser.add_argument('--early_stop_num', type=int, default=10)
     parser.add_argument('--valid_rate', type=float, default=0.2)
-
+    parser.add_argument('--batch_size', type=int, default=2)
      
     args = parser.parse_args()
 
@@ -125,7 +103,7 @@ if __name__ == '__main__':
 
     config = {
         "epochs": 500,
-        "batch_size": 1,
+        "batch_size": args.batch_size,
         "finetune": args.finetune,
         "D_h1": 256, 
         "D_h2": 64, 
@@ -133,8 +111,6 @@ if __name__ == '__main__':
         "adam_lr": 1e-5,
         "dropout": 0.6,
         "early_stop_num": args.early_stop_num,
-        "window_size": args.window_size,
-        "step_size": args.step_size,
         "valid_rate": args.valid_rate
     }
 
@@ -152,7 +128,7 @@ if __name__ == '__main__':
         if args.finetune:
             model.load_state_dict(torch.load(f'../data/model/{testfile}.pth'), strict=False) 
 
-        loss_function = nn.BCELoss() 
+        loss_function = nn.CrossEntropyLoss() 
 
         Acc = dict.fromkeys(Trait)
 
@@ -165,9 +141,7 @@ if __name__ == '__main__':
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
         train_loader, valid_loader, test_loader =\
-            get_Hazumi_loaders(testfile, batch_size=config["batch_size"], 
-                               window_size=args.window_size, 
-                               step_size=args.step_size) 
+            get_Hazumi_loaders(testfile, batch_size=config["batch_size"])
 
         best_loss, best_val_loss, best_pred, best_label = None, None, None, None
 
@@ -181,47 +155,29 @@ if __name__ == '__main__':
 
             if best_loss == None or best_val_loss > val_loss:
                 best_loss, best_label, best_pred= tst_loss, tst_label, tst_pred
-
-                best_acc = accuracy_score(tst_label, tst_pred)
-
-                for j, trait in enumerate(Trait):
-                    Acc[trait] = accuracy_score([tst_label[j]], [tst_pred[j]])
-
-
                 best_val_loss = val_loss
 
-            
-            trn_acc = accuracy_score(trn_label, trn_pred)
-            val_acc = accuracy_score(val_label, val_pred)
-
-
             if es(val_loss):
+                acc = 1 if torch.argmax(tst_pred, dim=1).item() == tst_label.item() else 0
                 break
                 
             if args.wandb:
                 wandb.log({
                     "_trn loss": trn_loss,
                     "_val loss": val_loss,
-                    "trn acc": trn_acc,
-                    'val acc': val_acc
                 })
 
         if args.wandb:
             wandb.log({
                 'tst loss': best_loss,
-                'acc': best_acc,
-                '1extr': Acc['extr'],
-                '2agre': Acc['agre'],
-                '3cons': Acc['cons'],
-                '4neur': Acc['neur'],
-                '5open': Acc['open']
+                'acc': acc,
             })
 
             wandb.finish()
 
-        Pred.append(best_pred)
-        Label.append(best_label)
+    #     Pred.append(best_pred)
+    #     Label.append(best_label)
 
-    utils.calc_confusion(Pred, Label)
+    # utils.calc_confusion(Pred, Label)
 
 

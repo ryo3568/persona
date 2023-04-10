@@ -8,11 +8,11 @@ from utils.Standardizing import Standardizing
 
 class HazumiDataset(Dataset):
 
-    def __init__(self, test_file, window_size=-1, step_size=1, train=True, scaler=None):
+    def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features.pkl'
+        path = '../data/Hazumi_features/Hazumi1911_features_self.pkl'
 
-        self.TS, self.TS_ternary, self.TP, self.TP_binary, self.TP_cluster, \
+        self.SS, self.SS_ternary, self.SP, self.SP_binary, self.SP_cluster, \
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -38,8 +38,8 @@ class HazumiDataset(Dataset):
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor(self.TP_binary[vid]),\
-            torch.LongTensor(self.TS_ternary[vid]),\
+            torch.LongTensor([self.SP_cluster[vid]]),\
+            torch.LongTensor(self.SS_ternary[vid]),\
             vid
 
     def __len__(self):
@@ -80,7 +80,7 @@ class HazumiDataset_sweep(Dataset):
         
     def __getitem__(self, index):
         vid = self.keys[index] 
-       
+
         return torch.FloatTensor(self.text[vid]),\
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\

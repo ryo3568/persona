@@ -14,18 +14,17 @@ class LSTMModel(nn.Module):
 
         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2) # linear for sentiment
-        self.plinear = nn.Linear(D_h2, 5)
+        self.plinear = nn.Linear(D_h2, 4)
         self.dropout = nn.Dropout(dropout)
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         out, _ = self.lstm(x)
         h = F.relu(self.linear(out[:, -1, :]))
         h = self.dropout(h)
         h = self.plinear(h)
-        y = self.sigmoid(h)
+        # y = F.softmax(h, dim=1)
 
-        return y
+        return h
 
 class LSTMMultitaskModel(nn.Module):
     """マルチタスク用LSTMモデル

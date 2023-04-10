@@ -1,19 +1,25 @@
-python persona.py --wandb --valid_rate 0.1
-python persona.py --wandb --valid_rate 0.2
-python persona.py --wandb --valid_rate 0.3
-
-python persona.py --wandb --valid_rate 0.1
-python persona.py --wandb --valid_rate 0.2
-python persona.py --wandb --valid_rate 0.3
-
-python persona.py --wandb --valid_rate 0.1
-python persona.py --wandb --valid_rate 0.2
-python persona.py --wandb --valid_rate 0.3
-
-python persona.py --wandb --valid_rate 0.1
-python persona.py --wandb --valid_rate 0.2
-python persona.py --wandb --valid_rate 0.3
-
-python persona.py --wandb --valid_rate 0.1
-python persona.py --wandb --valid_rate 0.2
-python persona.py --wandb --valid_rate 0.3
+python persona.py --wandb --batch_size 1
+python persona.py --wandb --batch_size 2
+python persona.py --wandb --batch_size 4
+python persona.py --wandb --batch_size 8
+python persona.py --wandb --batch_size 16
+python persona.py --wandb --batch_size 1
+python persona.py --wandb --batch_size 2
+python persona.py --wandb --batch_size 4
+python persona.py --wandb --batch_size 8
+python persona.py --wandb --batch_size 16
+python persona.py --wandb --batch_size 1
+python persona.py --wandb --batch_size 2
+python persona.py --wandb --batch_size 4
+python persona.py --wandb --batch_size 8
+python persona.py --wandb --batch_size 16
+python persona.py --wandb --batch_size 1
+python persona.py --wandb --batch_size 2
+python persona.py --wandb --batch_size 4
+python persona.py --wandb --batch_size 8
+python persona.py --wandb --batch_size 16
+python persona.py --wandb --batch_size 1
+python persona.py --wandb --batch_size 2
+python persona.py --wandb --batch_size 4
+python persona.py --wandb --batch_size 8
+python persona.py --wandb --batch_size 16

@@ -5,6 +5,7 @@ import os
 import glob
 import collections
 from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import StandardScaler
 import pandas as pd 
 from sklearn.cluster import KMeans
 
@@ -51,16 +52,15 @@ def flatten(l):
         else:
             yield el
 
-def clustering(vid, data, n_clusters=4):
+def clustering(data, vid, n_clusters=4):
     TP_cluster = {}
     trait_name = ["外向性", "協調性", "勤勉性", "神経症傾向", "開放性"]
     df = pd.DataFrame.from_dict(data, orient='index', columns=trait_name)
 
-    for i in range(1, len(vid) + 1):
-        model = KMeans(n_clusters=i, n_init=10, random_state=1)
-        model.fit(df) 
-        cluster = model.labels_
-        TP_cluster[i] = dict(zip(vid, cluster))
+    model = KMeans(n_clusters=n_clusters,  random_state=1)
+    model.fit(df) 
+    cluster = model.labels_
+    TP_cluster = dict(zip(vid, cluster))
 
     return TP_cluster
 
@@ -70,5 +70,17 @@ def rolling_window(x, window_size, step_size):
     if window_size == -1:
         window_size = seq_len
     return torch.stack([x[:,i: i+window_size, :] for i in range(0, seq_len-window_size+1, step_size)])
+
+def dict_standardize(data, vid):
+    columns = ['E', 'A', 'C', 'N', 'O']
+    df = pd.DataFrame.from_dict(data, orient='index', columns=columns)
+    sc = StandardScaler()
+    df = sc.fit_transform(df)
+    df = pd.DataFrame(df, columns=columns, index=vid).round(2)
+
+    res = {}
+    for i, r in df.iterrows():
+        res[i] = r.values.tolist() 
+    return res
 
 
