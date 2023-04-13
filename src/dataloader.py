@@ -10,9 +10,9 @@ class HazumiDataset(Dataset):
 
     def __init__(self, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumi1911_features_self.pkl'
+        path = '../data/Hazumi_features/Hazumiall_features.pkl'
 
-        self.SS, self.SS_ternary, self.SP, self.SP_binary, self.SP_cluster, \
+        self.TS, self.SS, self.SP_binary, self.SP_cluster, \
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
         self.keys = [] 
@@ -39,7 +39,6 @@ class HazumiDataset(Dataset):
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
             torch.LongTensor([self.SP_cluster[vid]]),\
-            torch.LongTensor(self.SS_ternary[vid]),\
             vid
 
     def __len__(self):
@@ -48,7 +47,51 @@ class HazumiDataset(Dataset):
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
 
-        return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
+        return [pad_sequence(dat[i], True) if i<4 else dat[i].tolist() for i in dat]
+
+# class HazumiDataset(Dataset):
+
+#     def __init__(self, test_file, train=True, scaler=None):
+    
+#         path = '../data/Hazumi_features/Hazumi1911_features_self.pkl'
+
+#         self.SS, self.SS_ternary, self.SP, self.SP_binary, self.SP_cluster, \
+#         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+
+#         self.keys = [] 
+
+#         if train:
+#             for x in self.vid:
+#                 if x != test_file:
+#                     self.keys.append(x) 
+#             self.scaler_audio = Standardizing()
+#             self.scaler_visual = Standardizing()
+#             self.scaler_audio.fit(self.audio, self.keys)
+#             self.scaler_visual.fit(self.visual, self.keys)
+#             self.scaler = (self.scaler_audio, self.scaler_visual)
+#         else:
+#             self.keys.append(test_file)
+#             self.scaler_audio, self.scaler_visual = scaler 
+
+#         self.len = len(self.keys) 
+
+        
+#     def __getitem__(self, index):
+#         vid = self.keys[index] 
+#         return torch.FloatTensor(self.text[vid]),\
+#             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
+#             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
+#             torch.LongTensor([self.SP_cluster[vid]]),\
+#             torch.LongTensor(self.SS_ternary[vid]),\
+#             vid
+
+#     def __len__(self):
+#         return self.len 
+
+#     def collate_fn(self, data):
+#         dat = pd.DataFrame(data)
+
+#         return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
 
 
 class HazumiDataset_sweep(Dataset):

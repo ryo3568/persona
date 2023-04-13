@@ -3,5 +3,4 @@
 /src/runs
 wandb/
 backup/
-maml/
-Hazumi/
+data/

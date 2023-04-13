@@ -64,7 +64,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, tp_binary, _ =\
+        text, visual, audio, tp_binary =\
         [d.cuda() for d in data[:-1]] if args.cuda else data[:-1]
 
         data = torch.cat((text, visual, audio), dim=-1)
@@ -117,7 +117,7 @@ if __name__ == '__main__':
     project_name = 'persona'
     group_name = utils.randomname(5)
 
-    testfiles = utils.get_files()
+    testfiles = utils.get_files("all")
     Trait = ['extr', 'agre', 'cons', 'neur', 'open']
     Pred = []
     Label = []

@@ -19,12 +19,31 @@ def count_parameters(model):
 def randomname(n):
    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
-def get_files():
-    testfiles = []
-    for f in glob.glob('../data/Hazumi1911/dumpfiles/*.csv'):
-        testfiles.append(os.path.splitext(os.path.basename(f))[0])
+def get_files(version):
+    testfiles1911 = []
+    testfiles2010 = []
+    testfiles2012 = []
 
-    testfiles = sorted(testfiles)
+    for f in glob.glob('../data/Hazumi/Hazumi1911/dumpfiles/*.csv'):
+        testfiles1911.append(os.path.splitext(os.path.basename(f))[0])
+    for f in glob.glob('../data/Hazumi/Hazumi2010/dumpfiles/*.csv'):
+        testfiles2010.append(os.path.splitext(os.path.basename(f))[0])
+    for f in glob.glob('../data/Hazumi/Hazumi2012/dumpfiles/*.csv'):
+        testfiles2012.append(os.path.splitext(os.path.basename(f))[0])
+
+    if version == "1911":
+        testfiles = sorted(testfiles1911)
+    elif version == "2010":
+        testfiles = sorted(testfiles2010)
+    elif version == "2012":
+        testfiles = sorted(testfiles2012)
+    elif version == "all":
+        testfiles = []
+        testfiles.extend(testfiles1911)
+        testfiles.extend(testfiles2010)
+        testfiles.extend(testfiles2012)
+        testfiles = sorted(testfiles)
+
     return testfiles
 
 def get_traits():
