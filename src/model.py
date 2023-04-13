@@ -13,7 +13,7 @@ class LSTMModel(nn.Module):
         dropout = config['dropout']
 
         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2) # linear for sentiment
+        self.linear = nn.Linear(D_h1, D_h2)
         self.plinear = nn.Linear(D_h2, 4)
         self.dropout = nn.Dropout(dropout)
 

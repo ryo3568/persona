@@ -25,9 +25,9 @@ def get_train_valid_sampler(trainset):
     np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=1, num_workers=2, pin_memory=False):
-    trainset = HazumiDataset(test_file)
-    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(version, test_file, batch_size=1, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(version, test_file)
+    testset = HazumiDataset(version, test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
@@ -69,9 +69,9 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 
         data = torch.cat((text, visual, audio), dim=-1)
 
-        loss = 0
-        preds = []
+        data = data[:, :50, :]
 
+        loss = 0
         pred = model(data)
 
         tp_binary = tp_binary.view(-1)
@@ -95,11 +95,11 @@ if __name__ == '__main__':
     parser.add_argument('--early_stop_num', type=int, default=10)
     parser.add_argument('--valid_rate', type=float, default=0.2)
     parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--version', type=str, default="all")
      
     args = parser.parse_args()
 
     args.cuda = torch.cuda.is_available()
-
 
     config = {
         "epochs": 500,
@@ -111,20 +111,21 @@ if __name__ == '__main__':
         "adam_lr": 1e-5,
         "dropout": 0.6,
         "early_stop_num": args.early_stop_num,
-        "valid_rate": args.valid_rate
+        "valid_rate": args.valid_rate,
+        "version": args.version
     }
 
     project_name = 'persona'
     group_name = utils.randomname(5)
 
-    testfiles = utils.get_files("all")
+    testfiles = utils.get_files(args.version)
     Trait = ['extr', 'agre', 'cons', 'neur', 'open']
     Pred = []
     Label = []
     for i, testfile in enumerate(tqdm(testfiles, position=0, leave=True)):
-
+        if i == 26:
+            break
         model = LSTMModel(config)
-
         if args.finetune:
             model.load_state_dict(torch.load(f'../data/model/{testfile}.pth'), strict=False) 
 
@@ -141,7 +142,7 @@ if __name__ == '__main__':
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
         train_loader, valid_loader, test_loader =\
-            get_Hazumi_loaders(testfile, batch_size=config["batch_size"])
+            get_Hazumi_loaders(args.version, testfile, batch_size=config["batch_size"])
 
         best_loss, best_val_loss, best_pred, best_label = None, None, None, None
 

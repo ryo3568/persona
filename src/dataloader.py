@@ -8,9 +8,9 @@ from utils.Standardizing import Standardizing
 
 class HazumiDataset(Dataset):
 
-    def __init__(self, test_file, train=True, scaler=None):
+    def __init__(self, version, test_file, train=True, scaler=None):
     
-        path = '../data/Hazumi_features/Hazumiall_features.pkl'
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
 
         self.TS, self.SS, self.SP_binary, self.SP_cluster, \
         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
