@@ -29,9 +29,9 @@ def get_train_valid_sampler(trainset):
     np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(test_file, batch_size=32, num_workers=2, pin_memory=False):
-    trainset = HazumiDataset(test_file)
-    testset = HazumiDataset(test_file, train=False, scaler=trainset.scaler) 
+def get_Hazumi_loaders(version, test_file, batch_size, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(version, test_file)
+    testset = HazumiDataset(version, test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
@@ -68,29 +68,27 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, _, ts_ternary =\
+        text, visual, audio, bio, _, sentiment =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
-        data = torch.cat((text, visual, audio), dim=-1)
-            
-        
+        data = torch.cat((text, visual, audio, bio), dim=-1)
+
         pred = model(data)
 
-        label = ts_ternary.view(-1)
+        label = sentiment.view(-1)
         pred = pred.view(-1, 3)
 
         loss = loss_function(pred, label)
-
-        pred = torch.argmax(pred, dim=1)
-
-        Loss.append(loss.item())
 
         if train:
             loss.backward()
             optimizer.step() 
 
-    avg_loss = round(np.sum(Loss)/len(Loss), 4)
+        pred = torch.argmax(pred, dim=1)
 
+        Loss.append(loss.item())
+
+    avg_loss = round(np.sum(Loss)/len(Loss), 4)
     pred = pred.squeeze().cpu() 
     label = label.squeeze().cpu()
 
@@ -100,26 +98,28 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pretrain', action='store_true', default=False)
     parser.add_argument('--wandb', action='store_true', default=False)
+    parser.add_argument('--early_stop_num', type=int, default=10)
+    parser.add_argument('--version', type=str, default="all")
      
     args = parser.parse_args()
 
     config = {
         "epochs": 500,
         "batch_size": 1,
-        "pretrain": args.pretrain,
         "D_h1": 256, 
         "D_h2": 64, 
         "weight_decay": 1e-5,
         "adam_lr": 1e-5,
         "dropout": 0.6,
+        "early_stop_num": args.early_stop_num,
+        "version": args.version,
     }
 
     project_name = 'sentiment'
     group_name = utils.randomname(5)
 
-    testfiles = utils.get_files()
+    testfiles = utils.get_files(args.version)
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
@@ -134,11 +134,12 @@ if __name__ == '__main__':
 
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
-        train_loader, valid_loader, test_loader = get_Hazumi_loaders(testfile, batch_size=config["batch_size"]) 
+        train_loader, valid_loader, test_loader =\
+            get_Hazumi_loaders(args.version, testfile, batch_size=config["batch_size"]) 
 
         best_loss, best_acc,  best_val_loss, best_param = None, None, None, None
 
-        es = EarlyStopping(patience=10, verbose=1)
+        es = EarlyStopping(patience=config['early_stop_num'])
 
         for epoch in range(config["epochs"]):
             trn_loss, _, _= train_or_eval_model(model, loss_function, train_loader, optimizer, True)
@@ -153,9 +154,6 @@ if __name__ == '__main__':
 
                 best_val_loss = val_loss
 
-                if args.pretrain:
-                    best_param = model.state_dict()
-        
             if es(val_loss):
                 break
             
@@ -165,8 +163,6 @@ if __name__ == '__main__':
                     '_val loss': val_loss
                 })
 
-        if args.pretrain:
-            torch.save(best_param, f'../data/model/{testfile}.pth')
 
 
         if args.wandb:

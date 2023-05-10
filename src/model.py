@@ -14,17 +14,43 @@ class LSTMModel(nn.Module):
 
         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)
-        self.plinear = nn.Linear(D_h2, 4)
+        self.plinear1 = nn.Linear(D_h2, D_h2)
+        self.plinear2 = nn.Linear(D_h2, 5)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out, _ = self.lstm(x)
         h = F.relu(self.linear(out[:, -1, :]))
         h = self.dropout(h)
-        h = self.plinear(h)
-        # y = F.softmax(h, dim=1)
+        h = self.plinear1(h)
+        h = self.plinear2(h)
 
         return h
+
+# class LSTMModel(nn.Module):
+#     """マルチタスク用LSTMモデル
+
+#     心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
+#     """
+#     def __init__(self, config):
+#         super(LSTMModel, self).__init__()
+#         D_h1 = config['D_h1'] 
+#         D_h2 = config['D_h2']
+#         dropout = config['dropout']
+
+#         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
+#         self.linear = nn.Linear(D_h1, D_h2)
+#         self.plinear = nn.Linear(D_h2, 4)
+#         self.dropout = nn.Dropout(dropout)
+
+#     def forward(self, x):
+#         out, _ = self.lstm(x)
+#         h = F.relu(self.linear(out[:, -1, :]))
+#         h = self.dropout(h)
+#         h = self.plinear(h)
+#         # y = F.softmax(h, dim=1)
+
+#         return h
 
 class LSTMMultitaskModel(nn.Module):
     """マルチタスク用LSTMモデル
@@ -71,7 +97,7 @@ class LSTMSentimentModel(nn.Module):
         D_h2 = config['D_h2']
         dropout = config['dropout']
 
-        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
+        self.lstm = nn.LSTM(input_size=1222, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)
         self.slinear = nn.Linear(D_h2, 3)
         self.dropout = nn.Dropout(dropout)

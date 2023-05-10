@@ -176,9 +176,4 @@ if __name__ == '__main__':
 
             wandb.finish()
 
-    #     Pred.append(best_pred)
-    #     Label.append(best_label)
-
-    # utils.calc_confusion(Pred, Label)
-
 
