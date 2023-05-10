@@ -97,9 +97,38 @@ class LSTMSentimentModel(nn.Module):
         D_h2 = config['D_h2']
         dropout = config['dropout']
 
-        self.lstm = nn.LSTM(input_size=1222, hidden_size=D_h1, batch_first=True)
+        if config["bio"]:
+            input_size = 1222 
+        else:
+            input_size = 1218
+
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)
         self.slinear = nn.Linear(D_h2, 3)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        h = F.relu(self.linear(out))
+        h = self.dropout(h)
+        y = self.slinear(h)
+
+        return y
+
+class LSTMBioModel(nn.Module):
+
+    def __init__(self, config):
+        
+        super(LSTMBioModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
+
+        input_size = 1218
+
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=D_h1, batch_first=True)
+        self.linear = nn.Linear(D_h1, D_h2)
+        self.slinear = nn.Linear(D_h2, 4)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):

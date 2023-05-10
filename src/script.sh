@@ -1,12 +1,9 @@
-python regression.py --wandb --version 1911
-python regression.py --wandb --version 1911
-python regression.py --wandb --version 1911
-python regression.py --wandb --version 1911
-python regression.py --wandb --version 1911
+python sentiment.py --version 1911 --wandb 
+python sentiment.py --version 1911 --wandb --bio
+python sentiment.py --version 1911 --wandb --third 
+python sentiment.py --version 1911 --wandb --third --bio 
 
-python regressionv1.py --wandb --version 1911
-python regressionv1.py --wandb --version 1911
-python regressionv1.py --wandb --version 1911
-python regressionv1.py --wandb --version 1911
-python regressionv1.py --wandb --version 1911
-python regressionv1.py --wandb --version 1911
+python sentiment.py --version 1911 --wandb 
+python sentiment.py --version 1911 --wandb --bio
+python sentiment.py --version 1911 --wandb --third 
+python sentiment.py --version 1911 --wandb --third --bio 
