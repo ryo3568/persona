@@ -97,10 +97,19 @@ class LSTMSentimentModel(nn.Module):
         D_h2 = config['D_h2']
         dropout = config['dropout']
 
-        if config["bio"]:
-            input_size = 1222 
-        else:
-            input_size = 1218
+        input_size = 0 
+
+        if 't' in config["modal"]:
+            input_size += 768
+
+        if 'a' in config["modal"]:
+            input_size += 384
+
+        if 'v' in config["modal"]:
+            input_size += 66
+
+        if 'b' in config["modal"]:
+            input_size += 4
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=D_h1, batch_first=True)
         self.linear = nn.Linear(D_h1, D_h2)

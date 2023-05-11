@@ -8,7 +8,7 @@ from utils.Standardizing import Standardizing
 
 class HazumiDataset(Dataset):
 
-    def __init__(self, version, test_file, train=True, scaler=None, third=False):
+    def __init__(self, version, test_file, train=True, scaler=None):
     
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
 
@@ -33,27 +33,18 @@ class HazumiDataset(Dataset):
             self.scaler_audio, self.scaler_visual, self.scaler_bio = scaler 
 
         self.len = len(self.keys) 
-        self.third = third
 
         
     def __getitem__(self, index):
         vid = self.keys[index] 
-        if self.third:
-            return torch.FloatTensor(self.text[vid]),\
-                torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-                torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-                torch.FloatTensor(self.scaler_bio.transform(self.bio[vid])),\
-                torch.FloatTensor(self.TP[vid]),\
-                torch.LongTensor(self.TS[vid]),\
-                vid
-        else:
-            return torch.FloatTensor(self.text[vid]),\
-                torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-                torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-                torch.FloatTensor(self.scaler_bio.transform(self.bio[vid])),\
-                torch.FloatTensor(self.TP[vid]),\
-                torch.LongTensor(self.SS[vid]),\
-                vid
+        return torch.FloatTensor(self.text[vid]),\
+            torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
+            torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
+            torch.FloatTensor(self.scaler_bio.transform(self.bio[vid])),\
+            torch.FloatTensor(self.TP[vid]),\
+            torch.LongTensor(self.SS[vid]),\
+            torch.LongTensor(self.TS[vid]),\
+            vid
 
 
     def __len__(self):
@@ -62,7 +53,7 @@ class HazumiDataset(Dataset):
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
 
-        return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
+        return [pad_sequence(dat[i], True) if i<7 else dat[i].tolist() for i in dat]
 
 
 # class HazumiDataset(Dataset):

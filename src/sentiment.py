@@ -29,9 +29,9 @@ def get_train_valid_sampler(trainset):
     np.random.shuffle(idx)
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
-def get_Hazumi_loaders(version, test_file, batch_size, third, num_workers=2, pin_memory=False):
-    trainset = HazumiDataset(version, test_file, third=third)
-    testset = HazumiDataset(version, test_file, train=False, scaler=trainset.scaler, third=third) 
+def get_Hazumi_loaders(version, test_file, batch_size, num_workers=2, pin_memory=False):
+    trainset = HazumiDataset(version, test_file)
+    testset = HazumiDataset(version, test_file, train=False, scaler=trainset.scaler) 
 
     train_sampler, valid_sampler = get_train_valid_sampler(trainset)
 
@@ -68,21 +68,30 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, bio, _, sentiment =\
+        text, visual, audio, bio, _, ss, ts =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
-        if config["bio"]:
-            data = torch.cat((text, visual, audio, bio), dim=-1)
-        else:
-            data = torch.cat((text, visual, audio), dim=-1)
+        input_modal = []
+        if 't' in config["modal"]:
+            input_modal.append(text)
 
+        if 'a' in config["modal"]:
+            input_modal.append(audio)
+
+        if 'v' in config["modal"]:
+            input_modal.append(visual)
+
+        if 'b' in config["modal"]:
+            input_modal.append(bio)
+
+        data = torch.cat(input_modal, dim=-1)
 
         pred = model(data)
 
-        label = sentiment.view(-1)
+        ss_label = ss.view(-1)
         pred = pred.view(-1, 3)
 
-        loss = loss_function(pred, label)
+        loss = loss_function(pred, ss_label)
 
         if train:
             loss.backward()
@@ -94,7 +103,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 
     avg_loss = round(np.sum(Loss)/len(Loss), 4)
     pred = pred.squeeze().cpu() 
-    label = label.squeeze().cpu()
+    label = ss_label.squeeze().cpu()
 
     return avg_loss, pred, label
 
@@ -106,8 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--early_stop_num', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--version', type=str, default="all")
-    parser.add_argument('--third', action='store_true', default=False)
-    parser.add_argument('--bio', action='store_true', default=False)
+    parser.add_argument('--modal', type=str, default="tav")
 
      
     args = parser.parse_args()
@@ -122,8 +130,7 @@ if __name__ == '__main__':
         "early_stop_num": args.early_stop_num,
         "batch_size": args.batch_size,
         "version": args.version,
-        "third": args.third,
-        "bio": args.bio,
+        "modal": args.modal
     }
 
     project_name = 'sentiment'
@@ -145,7 +152,7 @@ if __name__ == '__main__':
         optimizer = optim.Adam(model.parameters(), lr=config["adam_lr"], weight_decay=config["weight_decay"])
 
         train_loader, valid_loader, test_loader =\
-            get_Hazumi_loaders(args.version, testfile, batch_size=config["batch_size"], third=args.third) 
+            get_Hazumi_loaders(args.version, testfile, batch_size=config["batch_size"]) 
 
         best_loss, best_acc,  best_val_loss, best_param = None, None, None, None
 
