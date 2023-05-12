@@ -1,17 +1,14 @@
-import numpy as np
 import argparse
-import os
-import glob
-import string
-import random 
 from tqdm import tqdm
+import numpy as np
+from sklearn.metrics import accuracy_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from model import LSTMSentimentModel
+
+from model import sLSTMlateModel
 from dataloader import HazumiDataset
 import utils
 from utils.EarlyStopping import EarlyStopping
@@ -84,9 +81,9 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if 'b' in config["modal"]:
             input_modal.append(bio)
 
-        data = torch.cat(input_modal, dim=-1)
+        # data = torch.cat(input_modal, dim=-1)
 
-        pred = model(data)
+        pred = model(text, audio, visual)
 
         ss_label = ss.view(-1)
         pred = pred.view(-1, 3)
@@ -140,7 +137,7 @@ if __name__ == '__main__':
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = LSTMSentimentModel(config)
+        model = sLSTMlateModel(config)
         loss_function = nn.CrossEntropyLoss() 
 
         if args.wandb:
