@@ -8,7 +8,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
-from model import sLSTMlateModel
+from model import LateFusionModel, TextModel, AudioModel, VisualModel
 from dataloader import HazumiDataset
 import utils
 from utils.EarlyStopping import EarlyStopping
@@ -65,30 +65,24 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, bio, _, ss, ts =\
+        text, visual, audio, _, _, _, ts =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
-        input_modal = []
-        if 't' in config["modal"]:
-            input_modal.append(text)
+        # data = torch.cat(text, audio, visual, dim=-1)
 
-        if 'a' in config["modal"]:
-            input_modal.append(audio)
+        if config["modal"] == 't':
+            pred, _ = model(text)
+        elif config["modal"] == 'a':
+            pred, _ = model(audio) 
+        elif config["modal"] == 'v':
+            pred, _ = model(visual)
+        else:
+            pred = model(text, audio, visual)
 
-        if 'v' in config["modal"]:
-            input_modal.append(visual)
-
-        if 'b' in config["modal"]:
-            input_modal.append(bio)
-
-        # data = torch.cat(input_modal, dim=-1)
-
-        pred = model(text, audio, visual)
-
-        ss_label = ss.view(-1)
+        label = ts.view(-1)
         pred = pred.view(-1, 3)
 
-        loss = loss_function(pred, ss_label)
+        loss = loss_function(pred, label)
 
         if train:
             loss.backward()
@@ -100,7 +94,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
 
     avg_loss = round(np.sum(Loss)/len(Loss), 4)
     pred = pred.squeeze().cpu() 
-    label = ss_label.squeeze().cpu()
+    label = label.squeeze().cpu()
 
     return avg_loss, pred, label
 
@@ -111,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('--wandb', action='store_true', default=False)
     parser.add_argument('--early_stop_num', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=2)
-    parser.add_argument('--version', type=str, default="all")
+    parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
 
      
@@ -130,14 +124,25 @@ if __name__ == '__main__':
         "modal": args.modal
     }
 
-    project_name = 'sentiment'
+    project_name = 'third sentiment'
     group_name = utils.randomname(5)
 
     testfiles = utils.get_files(args.version)
 
     for testfile in tqdm(testfiles, position=0, leave=True):
 
-        model = sLSTMlateModel(config)
+        if 't' == config["modal"]:
+            model = TextModel(config)
+            model_path = f"../data/model/text/{testfile}"
+        elif 'a' == config["modal"]:
+            model = AudioModel(config)
+            model_path = f"../data/model/audio/{testfile}"
+        elif 'v' == config["modal"]:
+            model = VisualModel(config)
+            model_path = f"../data/model/visual/{testfile}"
+        else:
+            model = LateFusionModel(config, testfile)
+            
         loss_function = nn.CrossEntropyLoss() 
 
         if args.wandb:
@@ -177,8 +182,6 @@ if __name__ == '__main__':
                     '_val loss': val_loss
                 })
 
-
-
         if args.wandb:
             wandb.log({
                 'tst loss': best_loss,
@@ -186,3 +189,5 @@ if __name__ == '__main__':
             })            
                 
             wandb.finish()
+
+        torch.save(model.state_dict(), model_path)

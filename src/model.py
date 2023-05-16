@@ -2,97 +2,38 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
-class LSTMModel(nn.Module):
-    """マルチタスク用LSTMモデル
+class LateFusionModel(nn.Module):
 
-    心象ラベルとしてsentiment(7段階)を使用。誤差関数はMSELossを想定。
-    """
-    def __init__(self, config):
-        super(LSTMModel, self).__init__()
-        D_h1 = config['D_h1'] 
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2)
-        self.plinear1 = nn.Linear(D_h2, D_h2)
-        self.plinear2 = nn.Linear(D_h2, 5)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        h = F.relu(self.linear(out[:, -1, :]))
-        h = self.dropout(h)
-        h = self.plinear1(h)
-        h = self.plinear2(h)
-
-        return h
-
-class sLSTMearlyModel(nn.Module):
-
-    def __init__(self, config):
+    def __init__(self, config, id):
         
-        super(sLSTMearlyModel, self).__init__()
-        D_h1 = config['D_h1']
-        D_h2 = config['D_h2']
-        dropout = config['dropout']
-
-        self.lstm = nn.LSTM(input_size=config["input_size"], hidden_size=D_h1, batch_first=True)
-        self.linear = nn.Linear(D_h1, D_h2)
-        self.slinear = nn.Linear(D_h2, 3)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        h = F.relu(self.linear(out))
-        h = self.dropout(h)
-        y = self.slinear(h)
-
-        return y
-
-class sLSTMlateModel(nn.Module):
-
-    def __init__(self, config):
-        
-        super(sLSTMlateModel, self).__init__()
-        # D_h1 = config['D_h1']
-        # D_h2 = config['D_h2']
-        # dropout = config['dropout']
+        super(LateFusionModel, self).__init__()
         self.config = config
 
-        input_size = 0
-        if 't' in self.config["modal"]:
-            self.textlstm = textModel(config)
-            input_size += 3
-        if 'a' in self.config["modal"]:
-            self.audiolstm = audioModel(config)
-            input_size += 3
-        if 'v' in self.config["modal"]:
-            self.visuallstm = visualModel(config)
-            input_size += 3
+        self.textlstm = TextModel(config)
+        self.textlstm.load_state_dict(torch.load(f"../data/model/text/{id}"))
 
-        self.classifier = nn.Linear(input_size, 3)
+        self.audiolstm = AudioModel(config)
+        self.audiolstm.load_state_dict(torch.load(f"../data/model/audio/{id}"))
+
+        self.visuallstm = VisualModel(config)
+        self.visuallstm.load_state_dict(torch.load(f"../data/model/visual/{id}"))
+
+        self.classifier = nn.Linear(9, 3)
         # self.dropout = nn.Dropout(dropout)
 
     def forward(self, text, audio, visual):
-        input_data = []
-        if 't' in self.config["modal"]:
-            text_h, _ = self.textlstm(text)
-            input_data.append(text_h)
-        if 'a' in self.config["modal"]:
-            audio_h, _ = self.audiolstm(audio)
-            input_data.append(audio_h)
-        if 'v' in self.config["modal"]:
-            visual_h, _ = self.visuallstm(visual)
-            input_data.append(visual_h)
-        h = torch.cat(input_data, dim=-1)
+        text_h, _ = self.textlstm(text)
+        audio_h, _ = self.audiolstm(audio)
+        visual_h, _ = self.visuallstm(visual)
+
+        h = torch.cat([text_h, audio_h, visual_h], dim=-1)
         y = self.classifier(h)
         return y
     
-class textModel(nn.Module):
+class TextModel(nn.Module):
 
     def __init__(self, config):
-        super(textModel, self).__init__()
+        super(TextModel, self).__init__()
         D_h1 = config['D_h1']
         D_h2 = config['D_h2']
         # dropout = config['dropout']
@@ -109,10 +50,10 @@ class textModel(nn.Module):
         y = self.classifier(h)
         return y, h
 
-class audioModel(nn.Module):
+class AudioModel(nn.Module):
 
     def __init__(self, config):
-        super(audioModel, self).__init__()
+        super(AudioModel, self).__init__()
         D_h1 = config['D_h1']
         D_h2 = config['D_h2']
         # dropout = config['dropout']
@@ -129,10 +70,10 @@ class audioModel(nn.Module):
         y = self.classifier(h)
         return y, h
 
-class visualModel(nn.Module):
+class VisualModel(nn.Module):
 
     def __init__(self, config):
-        super(visualModel, self).__init__()
+        super(VisualModel, self).__init__()
         D_h1 = config['D_h1']
         D_h2 = config['D_h2']
         # dropout = config['dropout']
@@ -150,7 +91,54 @@ class visualModel(nn.Module):
         return y, h
     
 
+class EarlyFusionModel(nn.Module):
+
+    def __init__(self, config):
+        
+        super(EarlyFusionModel, self).__init__()
+        D_h1 = config['D_h1']
+        D_h2 = config['D_h2']
+        dropout = config['dropout']
+
+        self.lstm = nn.LSTM(input_size=config["input_size"], hidden_size=D_h1, batch_first=True)
+        self.linear = nn.Linear(D_h1, D_h2)
+        self.slinear = nn.Linear(D_h2, 3)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        h = F.relu(self.linear(out))
+        h = self.dropout(h)
+        y = self.slinear(h)
+
+        return y
+
 # 不要なモデル
+
+# class LSTMModel(nn.Module):
+#     """
+#     性格特性推定モデル
+#     """
+#     def __init__(self, config):
+#         super(LSTMModel, self).__init__()
+#         D_h1 = config['D_h1'] 
+#         D_h2 = config['D_h2']
+#         dropout = config['dropout']
+
+#         self.lstm = nn.LSTM(input_size=1218, hidden_size=D_h1, batch_first=True)
+#         self.linear = nn.Linear(D_h1, D_h2)
+#         self.plinear1 = nn.Linear(D_h2, D_h2)
+#         self.plinear2 = nn.Linear(D_h2, 5)
+#         self.dropout = nn.Dropout(dropout)
+
+#     def forward(self, x):
+#         out, _ = self.lstm(x)
+#         h = F.relu(self.linear(out[:, -1, :]))
+#         h = self.dropout(h)
+#         h = self.plinear1(h)
+#         h = self.plinear2(h)
+
+#         return h
 
 # class LSTMMultitaskModel(nn.Module):
 #     """マルチタスク用LSTMモデル
