@@ -65,7 +65,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, _, _, _, ts =\
+        text, visual, audio, tp, ts =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
         # data = torch.cat(text, audio, visual, dim=-1)
@@ -77,7 +77,9 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         elif config["modal"] == 'v':
             pred, _ = model(visual)
         else:
-            pred = model(text, audio, visual)
+            tp = tp.view(-1, 1, 5)
+            tp = tp.repeat(1, text.shape[1], 1)
+            pred = model(text, audio, visual, tp)
 
         label = ts.view(-1)
         pred = pred.view(-1, 3)
@@ -130,6 +132,8 @@ if __name__ == '__main__':
     testfiles = utils.get_files(args.version)
 
     for testfile in tqdm(testfiles, position=0, leave=True):
+
+        model_path = ""
 
         if 't' == config["modal"]:
             model = TextModel(config)
@@ -190,4 +194,5 @@ if __name__ == '__main__':
                 
             wandb.finish()
 
-        torch.save(model.state_dict(), model_path)
+        if model_path != "":
+            torch.save(model.state_dict(), model_path)

@@ -102,4 +102,13 @@ def dict_standardize(data, vid):
         res[i] = r.values.tolist() 
     return res
 
+def Normalization(x):
+    res = {}
+    for id, X in x.items():
+        norm_X = []
+        for x in X:
+            norm_X.append(round((x-2)/12, 2))
+        res[id] = norm_X
+    return res
+
 
