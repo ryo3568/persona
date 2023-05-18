@@ -194,7 +194,7 @@ if __name__ == '__main__':
             neg_acc = neg_c / neg_s 
         else:
             neg_acc = -1
-        if neg_s != 0:
+        if neu_s != 0:
             neu_acc = neu_c / neu_s 
         else:
             neu_acc = -1
@@ -214,6 +214,9 @@ if __name__ == '__main__':
                 'neg s': neg_s,
                 'neu s': neu_s,
                 'pos s': pos_s,
+                'neg c': neg_c,
+                'neu c': neu_c,
+                'pos c': pos_c,
             })            
                 
             wandb.finish()
