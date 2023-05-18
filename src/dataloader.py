@@ -42,6 +42,7 @@ class HazumiDataset(Dataset):
             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
             torch.FloatTensor(self.TP[vid]),\
+            torch.LongTensor(self.SS[vid]),\
             torch.LongTensor(self.TS[vid]),\
             vid
 
@@ -52,7 +53,7 @@ class HazumiDataset(Dataset):
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
 
-        return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
+        return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
 
 
 # class HazumiDataset(Dataset):

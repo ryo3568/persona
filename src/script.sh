@@ -1,4 +1,5 @@
-python sentiment.py --wandb --modal t
-python sentiment.py --wandb --modal a
-python sentiment.py --wandb --modal v
-python sentiment.py --wandb 
+python sentiment.py --wandb --persona e
+python sentiment.py --wandb --persona a
+python sentiment.py --wandb --persona c
+python sentiment.py --wandb --persona n
+python sentiment.py --wandb --persona o

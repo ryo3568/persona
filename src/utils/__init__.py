@@ -111,4 +111,13 @@ def Normalization(x):
         res[id] = norm_X
     return res
 
-
+def calc_acc(label, pred):
+    count = [0, 0, 0]
+    sum = [0, 0, 0]
+    for l, p in zip(label, pred):
+        if l == p:
+            count[l] += 1 
+            sum[l] += 1 
+        else:
+            sum[l] += 1
+    return count[0], count[1], count[2], sum[0], sum[1], sum[2]

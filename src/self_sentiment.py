@@ -65,7 +65,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
         if train:
             optimizer.zero_grad() 
         
-        text, visual, audio, tp, _, ts =\
+        text, visual, audio, tp, ss, _ =\
         [d.cuda() for d in data[:-1]] if torch.cuda.is_available() else data[:-1]
 
         # data = torch.cat(text, audio, visual, dim=-1)
@@ -81,7 +81,7 @@ def train_or_eval_model(model, loss_function, dataloader, optimizer=None, train=
             tp = tp.repeat(1, text.shape[1], 1)
             pred = model(text, audio, visual)
 
-        label = ts.view(-1)
+        label = ss.view(-1)
         pred = pred.view(-1, 3)
 
         loss = loss_function(pred, label)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
         "persona": args.persona,
     }
 
-    project_name = 'third sentiment'
+    project_name = 'self sentiment'
     group_name = utils.randomname(5)
 
     testfiles = utils.get_files(args.version)
@@ -190,9 +190,18 @@ if __name__ == '__main__':
                 })
 
         neg_c, neu_c, pos_c, neg_s, neu_s, pos_s = utils.calc_acc(tst_label, best_pred) 
-        neg_acc = neg_c / neg_s 
-        neu_acc = neu_c / neu_s 
-        pos_acc = pos_c / pos_s
+        if neg_s != 0:
+            neg_acc = neg_c / neg_s 
+        else:
+            neg_acc = -1
+        if neg_s != 0:
+            neu_acc = neu_c / neu_s 
+        else:
+            neu_acc = -1
+        if pos_s != 0:
+            pos_acc = pos_c / pos_s 
+        else:
+            pos_acc = -1
         best_acc = accuracy_score(tst_label, best_pred)
 
         if args.wandb:

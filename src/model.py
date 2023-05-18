@@ -10,23 +10,38 @@ class LateFusionModel(nn.Module):
         self.config = config
 
         self.textlstm = TextModel(config)
-        # self.textlstm.load_state_dict(torch.load(f"../data/model/text/{id}"))
+        self.textlstm.load_state_dict(torch.load(f"../data/model/text/{id}"))
 
         self.audiolstm = AudioModel(config)
-        # self.audiolstm.load_state_dict(torch.load(f"../data/model/audio/{id}"))
+        self.audiolstm.load_state_dict(torch.load(f"../data/model/audio/{id}"))
 
         self.visuallstm = VisualModel(config)
-        # self.visuallstm.load_state_dict(torch.load(f"../data/model/visual/{id}"))
+        self.visuallstm.load_state_dict(torch.load(f"../data/model/visual/{id}"))
 
-        self.classifier = nn.Linear(14, 3)
+        self.classifier = nn.Linear(9, 3)
         # self.dropout = nn.Dropout(dropout)
 
-    def forward(self, text, audio, visual, persona):
+        # if config["persona"] == 'e':
+        #     self.persona = 0 
+        # if config["persona"] == 'a':
+        #     self.persona = 1 
+        # if config["persona"] == 'c':
+        #     self.persona = 2 
+        # if config["persona"] == 'n':
+        #     self.persona = 3 
+        # if config["persona"] == 'o':
+        #     self.persona = 4 
+        
+
+    def forward(self, text, audio, visual):
         text_h, _ = self.textlstm(text)
         audio_h, _ = self.audiolstm(audio)
         visual_h, _ = self.visuallstm(visual)
 
-        h = torch.cat([text_h, audio_h, visual_h, persona], dim=-1)
+        # persona = persona[:, :, self.persona]
+        # persona = persona.view(-1, text.shape[1], 1)
+
+        h = torch.cat([text_h, audio_h, visual_h], dim=-1)
         y = self.classifier(h)
         return y
     
