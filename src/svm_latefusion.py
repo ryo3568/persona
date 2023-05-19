@@ -29,14 +29,7 @@ def load_data(testfile):
         persona = [(SP[file][3] - 2) / 12 for _ in range(seq_len)]
         persona = pd.DataFrame(persona)
 
-        if config["modal"] == 't':
-            data = pd.concat([data_t, persona, label], axis=1)
-        elif config["modal"] == 'a':
-            data = pd.concat([data_a, persona, label], axis=1)
-        elif config["modal"] == 'v':
-            data = pd.concat([data_v, persona, label], axis=1)
-        else:
-            data = pd.concat([data_t, data_a, data_v, persona, label], axis=1)
+        data = pd.concat([data_t, data_a, data_v, persona, label], axis=1)
 
         if file == testfile:
             test_data.append(data)
@@ -98,7 +91,6 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
         "modal": args.modal,
-        "persona": 'n',
     }
 
     project_name = 'svm_balanced' 
@@ -113,16 +105,31 @@ if __name__ == "__main__":
 
         x_train, y_train, x_test, y_test = load_data(testfile)
 
-        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
+        textmodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
+        textmodel.fit(x_train[:, :768], y_train) 
+        # textpred = textmodel.predict(x_test[:, :768])
+        textproba = textmodel.predict_proba(x_test[:, :768])
+
+        audiomodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
+        audiomodel.fit(x_train[:, 768:1152], y_train) 
+        # audiopred = textmodel.predict(x_test[:, :768])
+        audioproba = audiomodel.predict_proba(x_test[:, 768:1152])
+
+        visualmodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
+        visualmodel.fit(x_train[:, 1152:1218], y_train) 
+        # visualpred = textmodel.predict(x_test[:, :768])
+        visualproba = visualmodel.predict_proba(x_test[:, 1152:1218])
+
+        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
         model.fit(x_train, y_train) 
         pred = model.predict(x_test)
+
         print(classification_report(y_test, pred))
         d = classification_report(y_test, pred, output_dict=True)
         pred_all = np.concatenate([pred_all, pred])
         true_all = np.concatenate([true_all, y_test])
 
-        p_proba = model.predict_proba(x_test)
-        print(p_proba)
+        # p_proba = textmodel.predict_proba(x_test)
         # ans = y_test[0]
         # result.append(p_proba[:, ans])
 
