@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn import svm 
 from sklearn import preprocessing 
+from sklearn.metrics import confusion_matrix, classification_report
 import matplotlib.pyplot as plt
 import wandb 
 import utils
@@ -17,7 +18,7 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    SS, _, _, _, text, audio, visual, vid \
+    SS, TS, _, _, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
@@ -99,17 +100,23 @@ if __name__ == "__main__":
     project_name = 'svm' 
     group_name = utils.randomname(5)
 
+    pred_all = []
+    true_all = []
+
     for testfile in files:
         if args.wandb:
             wandb.init(project=project_name, group=group_name, config=config, name=testfile)
 
         x_train, y_train, x_test, y_test = load_data(testfile)
 
-        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"]) 
+        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight='balanced') 
         model.fit(x_train, y_train) 
-
-        print(model.score(x_train, y_train))
-        print(model.score(x_test, y_test))
+        pred = model.predict(x_test)
+        print(classification_report(y_test, pred))
+        d = classification_report(y_test, pred, output_dict=True)
+        pred_all = np.concatenate([pred_all, pred])
+        true_all = np.concatenate([true_all, y_test])
+        print(d)
 
         # p_proba = model.predict_proba(x_test)
         # ans = y_test[0]
@@ -123,7 +130,14 @@ if __name__ == "__main__":
 
         if args.wandb:
             wandb.log({
-                "acc": model.score(x_test, y_test)
+                "acc-micro": d['accuracy'],
+                "f1-macro": d['macro avg']['f1-score'],
+                "f1-0": d['0']['f1-score'],
+                "f1-1": d['1']['f1-score'],
+                "f1-2": d['2']['f1-score'],
             })
 
             wandb.finish()
+    
+    print("============= All results =============")
+    print(classification_report(true_all, pred_all))
