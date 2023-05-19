@@ -25,11 +25,20 @@ def load_data(testfile):
         data_v = pd.DataFrame(visual[file])
         label = pd.DataFrame(SS[file])
 
-        data = pd.concat([data_t, data_a, data_v, label], axis=1)
+        if config["modal"] == 't':
+            data = pd.concat([data_t, label], axis=1)
+        elif config["modal"] == 'a':
+            data = pd.concat([data_a, label], axis=1)
+        elif config["modal"] == 'v':
+            data = pd.concat([data_v, label], axis=1)
+        else:
+            data = pd.concat([data_t, data_a, data_v, label], axis=1)
+
         if file == testfile:
             test_data.append(data)
         else:
             train_data.append(data)
+            
     train_data = pd.concat(train_data)
     test_data = pd.concat(test_data) 
     train_data = train_data.sample(frac=1, random_state=0)
@@ -37,8 +46,8 @@ def load_data(testfile):
     x_train, y_train, x_test, y_test =\
          train_data.iloc[:, :-1].values, train_data.iloc[:, -1].values, test_data.iloc[:, :-1].values, test_data.iloc[:, -1].values
 
-    # scaler = preprocessing.MinMaxScaler()
-    scaler = preprocessing.StandardScaler()
+    scaler = preprocessing.MinMaxScaler()
+    # scaler = preprocessing.StandardScaler()
 
     x_train = scaler.fit_transform(x_train) 
     x_test = scaler.transform(x_test)
@@ -75,6 +84,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true', default=False)
     parser.add_argument('--version', type=str, default="1911")
+    parser.add_argument('--modal', type=str, default="tav")
     args = parser.parse_args()
 
     files = utils.get_files(args.version)
@@ -82,7 +92,8 @@ if __name__ == "__main__":
     config = {
         "C": 100,
         "gamma": 0.0001,
-        "kernel": "sigmoid"
+        "kernel": "sigmoid",
+        "modal": args.modal,
     }
 
     project_name = 'svm' 
