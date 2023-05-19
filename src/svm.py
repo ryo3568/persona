@@ -18,22 +18,25 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    SS, TS, _, _, text, audio, visual, vid \
+    SS, TS, SP, _, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
         data_a = pd.DataFrame(audio[file])
         data_v = pd.DataFrame(visual[file])
         label = pd.DataFrame(SS[file])
+        seq_len = len(SS[file])
+        persona = [SP[file][4] for _ in range(seq_len)]
+        persona = pd.DataFrame(persona)
 
         if config["modal"] == 't':
-            data = pd.concat([data_t, label], axis=1)
+            data = pd.concat([data_t, persona, label], axis=1)
         elif config["modal"] == 'a':
-            data = pd.concat([data_a, label], axis=1)
+            data = pd.concat([data_a, persona, label], axis=1)
         elif config["modal"] == 'v':
-            data = pd.concat([data_v, label], axis=1)
+            data = pd.concat([data_v, persona, label], axis=1)
         else:
-            data = pd.concat([data_t, data_a, data_v, label], axis=1)
+            data = pd.concat([data_t, data_a, data_v, persona, label], axis=1)
 
         if file == testfile:
             test_data.append(data)
@@ -95,9 +98,10 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
         "modal": args.modal,
+        "persona": 'n',
     }
 
-    project_name = 'svm' 
+    project_name = 'svm_balanced' 
     group_name = utils.randomname(5)
 
     pred_all = []
@@ -109,14 +113,13 @@ if __name__ == "__main__":
 
         x_train, y_train, x_test, y_test = load_data(testfile)
 
-        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight='balanced') 
+        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
         model.fit(x_train, y_train) 
         pred = model.predict(x_test)
         print(classification_report(y_test, pred))
         d = classification_report(y_test, pred, output_dict=True)
         pred_all = np.concatenate([pred_all, pred])
         true_all = np.concatenate([true_all, y_test])
-        print(d)
 
         # p_proba = model.predict_proba(x_test)
         # ans = y_test[0]
@@ -129,13 +132,21 @@ if __name__ == "__main__":
         # draw_heatmap(result, testfile, traits, list(range(1, seq_len+1)))
 
         if args.wandb:
-            wandb.log({
-                "acc-micro": d['accuracy'],
-                "f1-macro": d['macro avg']['f1-score'],
-                "f1-0": d['0']['f1-score'],
-                "f1-1": d['1']['f1-score'],
-                "f1-2": d['2']['f1-score'],
-            })
+            if '0' in d:
+                wandb.log({
+                    "acc-micro": d['accuracy'],
+                    "f1-macro": d['macro avg']['f1-score'],
+                    "f1-0": d['0']['f1-score'],
+                    "f1-1": d['1']['f1-score'],
+                    "f1-2": d['2']['f1-score'],
+                })
+            else:
+                wandb.log({
+                    "acc-micro": d['accuracy'],
+                    "f1-macro": d['macro avg']['f1-score'],
+                    "f1-1": d['1']['f1-score'],
+                    "f1-2": d['2']['f1-score'],
+                })
 
             wandb.finish()
     
