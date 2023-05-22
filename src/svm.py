@@ -86,7 +86,6 @@ if __name__ == "__main__":
     parser.add_argument('--wandb', action='store_true', default=False)
     parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
-    parser.add_argument('--persona', type=int, default=5)
 
     args = parser.parse_args()
 
@@ -97,7 +96,6 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
         "modal": args.modal,
-        "persona": args.persona,
     }
 
     project_name = 'thirdsentiment-svm' 
