@@ -18,7 +18,7 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    _, TS, SP, _, text, audio, visual, vid \
+    SS, TS, SP, TP, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
@@ -26,11 +26,18 @@ def load_data(testfile):
         data_v = pd.DataFrame(visual[file])
         label = pd.DataFrame(TS[file])
         seq_len = len(TS[file])
-        sp = list(map(lambda x: round((x-2)/12, 2), SP[file]))
-        if config["persona"] != 5:
-            persona = [sp[config["persona"]] for _ in range(seq_len)]
+        if config["self_p"]:
+            p = list(map(lambda x: round((x-2)/12, 2), SP[file]))
         else:
-            persona = [sp for _ in range(seq_len)]
+            p = list(map(lambda x: round((x-2)/12, 2), TP[file]))
+        if config["self"]:
+            label = pd.DataFrame(SS[file])
+        else:
+            label = pd.DataFrame(TS[file])
+        if config["persona"] != 5:
+            persona = [p[config["persona"]] for _ in range(seq_len)]
+        else:
+            persona = [p for _ in range(seq_len)]
         persona = pd.DataFrame(persona)
 
         if config["modal"] == 't':
@@ -94,6 +101,8 @@ if __name__ == "__main__":
     parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
     parser.add_argument('--persona', type=int, default=5)
+    parser.add_argument('--self_s', action='store_true', default=False)
+    parser.add_argument('--self_p', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -105,9 +114,15 @@ if __name__ == "__main__":
         "kernel": "sigmoid",
         "modal": args.modal,
         "persona": args.persona,
+        "self_s": args.self_s,
+        "self_p": args.self_p,
     }
 
-    project_name = 'thirdsentiment-svm' 
+    if config["self"]:
+        project_name = 'selfsentiment-svm-persona' 
+    else:
+        project_name= 'thirdsentiment-svm-persona'
+
     group_name = utils.randomname(5)
 
     pred_all = []

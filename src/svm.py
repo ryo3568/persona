@@ -18,13 +18,16 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    _, TS, _, _, text, audio, visual, vid \
+    SS, TS, _, _, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
         data_a = pd.DataFrame(audio[file])
         data_v = pd.DataFrame(visual[file])
-        label = pd.DataFrame(TS[file])
+        if config["self_s"]:
+            label = pd.DataFrame(SS[file])
+        else:
+            label = pd.DataFrame(TS[file])
 
         if config["modal"] == 't':
             data = pd.concat([data_t, label], axis=1)
@@ -86,6 +89,7 @@ if __name__ == "__main__":
     parser.add_argument('--wandb', action='store_true', default=False)
     parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
+    parser.add_argument('--self_s', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -96,9 +100,12 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
         "modal": args.modal,
+        "self_s": args.self_s,
     }
-
-    project_name = 'thirdsentiment-svm' 
+    if config["self_s"]:
+        project_name = 'selfsentiment-svm' 
+    else:
+        project_name= 'thirdsentiment-svm'
     group_name = utils.randomname(5)
 
     pred_all = []
