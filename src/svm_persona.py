@@ -30,7 +30,7 @@ def load_data(testfile):
             p = list(map(lambda x: round((x-2)/12, 2), SP[file]))
         else:
             p = list(map(lambda x: round((x-2)/12, 2), TP[file]))
-        if config["self"]:
+        if config["self_s"]:
             label = pd.DataFrame(SS[file])
         else:
             label = pd.DataFrame(TS[file])
