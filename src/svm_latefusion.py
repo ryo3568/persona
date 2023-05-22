@@ -108,21 +108,30 @@ if __name__ == "__main__":
         textmodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
         textmodel.fit(x_train[:, :768], y_train) 
         # textpred = textmodel.predict(x_test[:, :768])
-        textproba = textmodel.predict_proba(x_test[:, :768])
+        textproba = textmodel.predict_proba(x_train[:, :768])
 
         audiomodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
         audiomodel.fit(x_train[:, 768:1152], y_train) 
         # audiopred = textmodel.predict(x_test[:, :768])
-        audioproba = audiomodel.predict_proba(x_test[:, 768:1152])
+        audioproba = audiomodel.predict_proba(x_train[:, 768:1152])
 
         visualmodel = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
         visualmodel.fit(x_train[:, 1152:1218], y_train) 
         # visualpred = textmodel.predict(x_test[:, :768])
-        visualproba = visualmodel.predict_proba(x_test[:, 1152:1218])
+        visualproba = visualmodel.predict_proba(x_train[:, 1152:1218])
+        
+        data = np.concatenate([textproba, audioproba, visualproba], axis=1)
 
         model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
-        model.fit(x_train, y_train) 
-        pred = model.predict(x_test)
+        model.fit(data, y_train) 
+
+        textproba = textmodel.predict_proba(x_test[:, :768])
+        audioproba = audiomodel.predict_proba(x_test[:, 768:1152])
+        visualproba = visualmodel.predict_proba(x_test[:, 1152:1218])
+
+        data = np.concatenate([textproba, audioproba, visualproba], axis=1)
+        pred = model.predict(data)
+        print(pred)
 
         print(classification_report(y_test, pred))
         d = classification_report(y_test, pred, output_dict=True)

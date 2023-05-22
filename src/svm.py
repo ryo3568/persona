@@ -18,14 +18,14 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    SS, TS, SP, _, text, audio, visual, vid \
+    _, TS, SP, _, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
         data_a = pd.DataFrame(audio[file])
         data_v = pd.DataFrame(visual[file])
-        label = pd.DataFrame(SS[file])
-        seq_len = len(SS[file])
+        label = pd.DataFrame(TS[file])
+        seq_len = len(TS[file])
         persona = [(SP[file][3] - 2) / 12 for _ in range(seq_len)]
         persona = pd.DataFrame(persona)
 
@@ -98,10 +98,9 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
         "modal": args.modal,
-        "persona": 'n',
     }
 
-    project_name = 'svm_balanced' 
+    project_name = 'thirdsentiment-svm' 
     group_name = utils.randomname(5)
 
     pred_all = []
@@ -113,7 +112,7 @@ if __name__ == "__main__":
 
         x_train, y_train, x_test, y_test = load_data(testfile)
 
-        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced", probability=True) 
+        model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
         model.fit(x_train, y_train) 
         pred = model.predict(x_test)
         print(classification_report(y_test, pred))
@@ -121,8 +120,7 @@ if __name__ == "__main__":
         pred_all = np.concatenate([pred_all, pred])
         true_all = np.concatenate([true_all, y_test])
 
-        p_proba = model.predict_proba(x_test)
-        print(p_proba)
+        # p_proba = model.predict_proba(x_test)
         # ans = y_test[0]
         # result.append(p_proba[:, ans])
 
@@ -135,7 +133,7 @@ if __name__ == "__main__":
         if args.wandb:
             if '0' in d:
                 wandb.log({
-                    "acc-micro": d['accuracy'],
+                    "acc": d['accuracy'],
                     "f1-macro": d['macro avg']['f1-score'],
                     "f1-0": d['0']['f1-score'],
                     "f1-1": d['1']['f1-score'],
