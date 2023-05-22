@@ -18,22 +18,29 @@ def load_data(testfile):
     train_data = []
     test_data = []
     path = '../data/Hazumi_features/Hazumi1911_features.pkl'
-    _, TS, _, _, text, audio, visual, vid \
+    _, TS, SP, _, text, audio, visual, vid \
         = pickle.load(open(path, 'rb'), encoding='utf-8')
     for file in vid:
         data_t = pd.DataFrame(text[file])
         data_a = pd.DataFrame(audio[file])
         data_v = pd.DataFrame(visual[file])
         label = pd.DataFrame(TS[file])
+        seq_len = len(TS[file])
+        sp = list(map(lambda x: round((x-2)/12, 2), SP[file]))
+        if config["persona"] != 5:
+            persona = [sp[config["persona"]] for _ in range(seq_len)]
+        else:
+            persona = [sp for _ in range(seq_len)]
+        persona = pd.DataFrame(persona)
 
         if config["modal"] == 't':
-            data = pd.concat([data_t, label], axis=1)
+            data = pd.concat([data_t, persona, label], axis=1)
         elif config["modal"] == 'a':
-            data = pd.concat([data_a, label], axis=1)
+            data = pd.concat([data_a, persona, label], axis=1)
         elif config["modal"] == 'v':
-            data = pd.concat([data_v, label], axis=1)
+            data = pd.concat([data_v, persona, label], axis=1)
         else:
-            data = pd.concat([data_t, data_a, data_v, label], axis=1)
+            data = pd.concat([data_t, data_a, data_v, persona, label], axis=1)
 
         if file == testfile:
             test_data.append(data)
