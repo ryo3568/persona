@@ -118,10 +118,15 @@ if __name__ == "__main__":
         "self_p": args.self_p,
     }
 
-    if config["self_s"]:
-        project_name = 'selfsentiment-svm-persona' 
+    if config["self_s"] and config["self_p"]:
+        project_name = 'selfsentiment-selfpersona' 
+    elif config["self_s"]:
+        project_name= 'selfsentiment-thirdpersona'
+    elif config["self_p"]:
+        project_name= 'thirdsentiment-selfpersona'
     else:
-        project_name= 'thirdsentiment-svm-persona'
+        project_name= 'thirdsentiment-thirdpersona'
+
 
     group_name = utils.randomname(5)
 
