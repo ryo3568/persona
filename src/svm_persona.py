@@ -118,7 +118,7 @@ if __name__ == "__main__":
         "self_p": args.self_p,
     }
 
-    if config["self"]:
+    if config["self_s"]:
         project_name = 'selfsentiment-svm-persona' 
     else:
         project_name= 'thirdsentiment-svm-persona'
