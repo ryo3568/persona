@@ -1,37 +1,41 @@
-import torch
 import random 
 import string 
 import os
 import glob
 import collections
+import numpy as np
+import pandas as pd 
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
-import pandas as pd 
 from sklearn.cluster import KMeans
-
-def count_parameters(model):
-    params = 0 
-    for p in model.parameters():
-        if p.requires_grad:
-            params += p.numel() 
-    return params
+import torch
 
 def randomname(n):
    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
-def get_files(version):
+def get_files(version='1911'):
+    testfiles1712 = []
+    testfiles1902 = []
     testfiles1911 = []
     testfiles2010 = []
     testfiles2012 = []
 
-    for f in glob.glob('../data/Hazumi/Hazumi1911/dumpfiles/*.csv'):
+    for f in glob.glob('../data/Hazumi/Hazumi1712/dumpfiles/*.csv'):
+        testfiles1712.append(os.path.splitext(os.path.basename(f))[0])
+    for f in glob.glob('../data/Hazumi/Hazumi1902/dumpfiles/*.csv'):
+        testfiles1902.append(os.path.splitext(os.path.basename(f))[0])
+    for f in glob.glob('../../data/Hazumi/Hazumi1911/dumpfiles/*.csv'):
         testfiles1911.append(os.path.splitext(os.path.basename(f))[0])
     for f in glob.glob('../data/Hazumi/Hazumi2010/dumpfiles/*.csv'):
         testfiles2010.append(os.path.splitext(os.path.basename(f))[0])
     for f in glob.glob('../data/Hazumi/Hazumi2012/dumpfiles/*.csv'):
         testfiles2012.append(os.path.splitext(os.path.basename(f))[0])
 
-    if version == "1911":
+    if version == "1712":
+        testfiles = sorted(testfiles1712)
+    elif version == "1902":
+        testfiles = sorted(testfiles1902)
+    elif version == "1911":
         testfiles = sorted(testfiles1911)
     elif version == "2010":
         testfiles = sorted(testfiles2010)
@@ -39,56 +43,61 @@ def get_files(version):
         testfiles = sorted(testfiles2012)
     elif version == "all":
         testfiles = []
+        testfiles.extend(testfiles1712)
+        testfiles.extend(testfiles1902)
         testfiles.extend(testfiles1911)
         testfiles.extend(testfiles2010)
         testfiles.extend(testfiles2012)
         testfiles = sorted(testfiles)
-
     return testfiles
 
-def get_traits():
-    return ['外向性', '協調性', '勤勉性', '神経症傾向', '開放性']
+def clusteringv2(data, n_clusters=4):
+    df = pd.DataFrame.from_dict(data, orient='index')
+    index = df.index
 
-def calc_confusion(pred, label):
-    Pred = [[], [], [], [], []]
-    Label = [[], [], [], [], []]
+    model = KMeans(n_clusters=n_clusters, random_state=0) 
+    model.fit(df)
+    pred = model.predict(df)
 
-    for i in range(len(pred)):
-        for j in range(5):
-            Pred[j].append(1 if pred[i][j] >= 0.5 else 0)
-            Label[j].append(label[i][j])
+    cluster = {} 
+    for i, id in enumerate(index):
+        cluster[id] = pred[i]
 
-    Traits = ['extr', 'agre', 'cons', 'neur', 'open']
+    return cluster
 
-    for i, trait in enumerate(Traits):
-        print(trait)
-        print(confusion_matrix(Label[i], Pred[i]))
-
-def flatten(l):
-    for el in l:
-        if isinstance(el, collections.abc.Iterable) and not isinstance(el, (str, bytes)):
-            yield from flatten(el)
-        else:
-            yield el
-
-def clustering(data, vid, n_clusters=4):
-    TP_cluster = {}
-    trait_name = ["外向性", "協調性", "勤勉性", "神経症傾向", "開放性"]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=trait_name)
-
-    model = KMeans(n_clusters=n_clusters,  random_state=1)
-    model.fit(df) 
-    cluster = model.labels_
-    TP_cluster = dict(zip(vid, cluster))
-
-    return TP_cluster
+def clustering(data, testfile, n_clusters=4):
+    columns = ['E', 'A', 'C', 'N', 'O']
+    test_data = {}
+    test_data[testfile] = data.pop(testfile)
+    # df = pd.DataFrame.from_dict(data, orient='index', columns=columns)
+    df = pd.DataFrame.from_dict(data, orient='index')
+    # test_df = pd.DataFrame.from_dict(test_data, orient='index', columns=columns)
+    test_df = pd.DataFrame.from_dict(test_data, orient='index')
+    # sc = StandardScaler()
+    index = df.index
+    # df = sc.fit_transform(df)
+    # test_df = sc.transform(test_df)
+    # df = pd.DataFrame(df, columns=columns)
+    # df = pd.DataFrame(df)
+    # df.index = index
+    # test_df = pd.DataFrame(test_df, columns=columns)
+    # test_df = pd.DataFrame(test_df)
+    # test_df.index = [testfile]
 
 
-def rolling_window(x, window_size, step_size):
-    seq_len = x.shape[1]
-    if window_size == -1:
-        window_size = seq_len
-    return torch.stack([x[:,i: i+window_size, :] for i in range(0, seq_len-window_size+1, step_size)])
+    model = KMeans(n_clusters=n_clusters, random_state=0) 
+    model.fit(df)
+    pred = model.predict(df)
+
+    cluster = {} 
+    for i, id in enumerate(index):
+        cluster[id] = pred[i]
+    cluster[testfile] = model.predict(test_df)[0]
+
+    dist = model.transform(test_df)
+    dist = round(dist[0][cluster[testfile]], 3)
+
+    return cluster, dist
 
 def dict_standardize(data, vid):
     columns = ['E', 'A', 'C', 'N', 'O']
@@ -111,13 +120,13 @@ def Normalization(x):
         res[id] = norm_X
     return res
 
-def calc_acc(label, pred):
-    count = [0, 0, 0]
-    sum = [0, 0, 0]
-    for l, p in zip(label, pred):
-        if l == p:
-            count[l] += 1 
-            sum[l] += 1 
-        else:
-            sum[l] += 1
-    return count[0], count[1], count[2], sum[0], sum[1], sum[2]
+def torch_fix_seed(seed=123):
+    # Python random
+    random.seed(seed)
+    # Numpy
+    np.random.seed(seed)
+    # Pytorch
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms = True

@@ -2,6 +2,57 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
+class NN(nn.Module):
+    def __init__(self, input_size=768, hidden_size=100, output_size=2):
+        super(NN, self).__init__()
+        self.l1 = torch.nn.Linear(input_size, hidden_size)
+        self.l2 = torch.nn.Linear(hidden_size, hidden_size)
+        self.l3 = torch.nn.Linear(hidden_size, hidden_size)
+        self.l4 = torch.nn.Linear(hidden_size, hidden_size)
+        self.l5 = torch.nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        h = torch.nn.functional.relu(self.l1(x))
+        h = torch.nn.functional.relu(self.l2(h))
+        h = torch.nn.functional.relu(self.l3(h))
+        h = torch.nn.functional.relu(self.l4(h))
+        out = torch.nn.functional.sigmoid(self.l5(h))
+        return out
+
+class MTL_NN(nn.Module):
+    def __init__(self, input_size=768, hidden_size=100, output_size=2, dropout=0.25):
+        super(MTL_NN, self).__init__()
+        self.l1 = torch.nn.Linear(input_size, hidden_size)
+        self.l2 = torch.nn.Linear(hidden_size, hidden_size)
+        self.l3 = torch.nn.Linear(hidden_size, hidden_size)
+
+        self.ss1 = torch.nn.Linear(hidden_size, hidden_size)
+        self.ss2 = torch.nn.Linear(hidden_size, output_size)
+
+        self.ts1 = torch.nn.Linear(hidden_size, hidden_size)
+        self.ts2 = torch.nn.Linear(hidden_size, output_size)
+
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, x):
+        h = torch.nn.functional.relu(self.l1(x))
+        h = self.dropout(h)
+        h = torch.nn.functional.relu(self.l2(h))
+        h = self.dropout(h)
+        h = torch.nn.functional.relu(self.l3(h))
+        h = self.dropout(h)
+
+        ss_h = torch.nn.functional.relu(self.ss1(h))
+        ss_h = self.dropout(ss_h)
+        # ss_out = torch.nn.functional.sigmoid(self.ss2(ss_h))
+        ss_out = self.ss2(ss_h)
+
+        ts_h = torch.nn.functional.relu(self.ts1(h))
+        ts_h = self.dropout(ts_h)
+        # ts_out = torch.nn.functional.sigmoid(self.ts2(ts_h))
+        ts_out = self.ts2(ts_h)
+        return ss_out, ts_out
+
 class LateFusionModel(nn.Module):
 
     def __init__(self, config, id):
