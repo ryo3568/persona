@@ -5,10 +5,11 @@ import numpy as np
 import pandas as pd
 from sklearn import svm 
 from sklearn import preprocessing 
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, f1_score
 import matplotlib.pyplot as plt
 import wandb 
 import copy
+import datetime
 
 # from imblearn.under_sampling import RandomUnderSampler
 
@@ -64,15 +65,20 @@ if __name__ == "__main__":
         "gamma": 0.0001,
         "kernel": "sigmoid",
     }
-
+    
+    dt_now = datetime.datetime.now()
+    dt_now_str = dt_now.strftime("%m%d%H%M%S")
+    resultsfile = f"./results/test4-{dt_now_str}.txt"
 
     for testfile in files:
+        print(f"testfile:{testfile}")
         filenames = copy.deepcopy(files)
         filenames.remove(testfile)
         n = len(filenames)
         results = []
-        best_acc = 0.0
-        for i in range(1, 2 ** n):
+        # best_acc = 0.0
+        best_f1 = 0.0
+        for i in tqdm(range(1, 2 ** n)):
             try:
                 data_files = []
                 for j in range(n):
@@ -80,16 +86,18 @@ if __name__ == "__main__":
                         data_files.append(filenames[j])
                 x_train, y_train, x_test, y_test = load_data(testfile, data_files)
 
-                model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"]) 
+                # model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"]) 
+                model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
 
                 model.fit(x_train, y_train) 
                 pred = model.predict(x_test)
 
-                acc = accuracy_score(y_test, pred)
+                # acc = accuracy_score(y_test, pred)
+                f1 = f1_score(y_test, pred)
                 conf = confusion_matrix(y_test, pred)
-                if acc >= best_acc:
-                    if acc > best_acc:
-                        best_acc = acc
+                if f1 >= best_f1:
+                    if f1 > best_f1:
+                        best_f1 = f1
                         best_ans = [data_files]
                         best_conf = [conf]
                     else:
@@ -103,8 +111,8 @@ if __name__ == "__main__":
         #     print(conf)
         #     print('------------')
         # print("=====================================")
-        with open("./results/test4.txt", mode='a') as f:
-            f.write(f"{testfile}: {round(best_acc, 3)}\n")
+        with open(resultsfile, mode='a') as f:
+            f.write(f"{testfile}: {round(best_f1, 3)}\n")
             for ans, conf in zip(best_ans, best_conf):
                 for i, id in enumerate(ans):
                     if i:

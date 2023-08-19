@@ -5,9 +5,11 @@ import numpy as np
 import pandas as pd
 from sklearn import svm 
 from sklearn import preprocessing 
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, f1_score
 import matplotlib.pyplot as plt
 import wandb 
+import copy
+import datetime
 
 # from imblearn.under_sampling import RandomUnderSampler
 
@@ -22,8 +24,8 @@ import utils
 def load_data(testfile, data_files):
     train_data = []
     test_data = []
-    path = f'../../data/Hazumi_features/Hazumi1911_features.pkl'
-    SS, _, _, TP, Text, _, _, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+    path = f'../../data/Hazumi_features/Hazumi1911_features_small.pkl'
+    SS, _, _, _, Text, _, _, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
     for file in vid:
         text = pd.DataFrame(Text[file])
@@ -54,21 +56,26 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    files = utils.get_files(args.version)
+    # files = utils.get_files(args.version)
+    files = ["1911F2001", "1911F3001", "1911F4001", "1911F5001", "1911F6001", "1911F7002",
+                "1911M2001", "1911M4001", "1911M5001", "1911M6001", "1911M7001"]
 
     config = {
         "C": 100,
         "gamma": 0.0001,
         "kernel": "sigmoid",
     }
+    
+    dt_now = datetime.datetime.now()
+    dt_now_str = dt_now.strftime("%m%d%H%M%S")
+    resultsfile = f"./results/test1-{dt_now_str}.txt"
 
     for testfile in files:
-        print(f"testfile:{testfile}")
-        filenames = files
+        filenames = copy.deepcopy(files)
         filenames.remove(testfile)
+        results = {id: [] for id in filenames}
         n = len(filenames)
-        results = []
-        best_acc = 0.0
+        best_f1 = 0.0
         for i in tqdm(range(1, 2 ** n)):
             try:
                 data_files = []
@@ -77,16 +84,20 @@ if __name__ == "__main__":
                         data_files.append(filenames[j])
                 x_train, y_train, x_test, y_test = load_data(testfile, data_files)
 
-                model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"]) 
+                # model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"]) 
+                model = svm.SVC(C=config["C"], gamma=config["gamma"], kernel=config["kernel"], class_weight="balanced") 
 
                 model.fit(x_train, y_train) 
                 pred = model.predict(x_test)
 
-                acc = accuracy_score(y_test, pred)
+                # acc = accuracy_score(y_test, pred)
+                f1 = f1_score(y_test, pred)
                 conf = confusion_matrix(y_test, pred)
-                if acc >= best_acc:
-                    if acc > best_acc:
-                        best_acc = acc
+                for train_id in data_files:
+                    results[train_id].append(f1)
+                if f1 >= best_f1:
+                    if f1 > best_f1:
+                        best_f1 = f1
                         best_ans = [data_files]
                         best_conf = [conf]
                     else:
@@ -94,14 +105,8 @@ if __name__ == "__main__":
                         best_conf.append(confusion_matrix(y_test, pred))
             except:
                 pass
-        # with open("./results/test5.txt", mode='a') as f:
-        #     f.write(f"{testfile}: {round(best_acc), 3}")
-        #     for ans, conf in zip(best_ans, best_conf):
-        #         f.write(ans)
-        #         f.write(conf)
-        #     f.write("=====================================")
-        with open("./results/test5.txt", mode='a') as f:
-            f.write(f"{testfile}: {round(best_acc, 3)}\n")
+        with open(resultsfile, mode='a') as f:
+            f.write(f"{testfile}: {round(best_f1, 3)}\n")
             for ans, conf in zip(best_ans, best_conf):
                 for i, id in enumerate(ans):
                     if i:
@@ -116,3 +121,9 @@ if __name__ == "__main__":
                     f.write("\n")
                 f.write("------------\n")
             f.write("=====================================\n")
+            f.write("oracle score\n")
+            for key, value in results.items():
+                f.write(f"{key}:{round(sum(value)/len(value), 3)}, ")
+            f.write("\n")
+
+
