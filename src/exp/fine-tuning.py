@@ -21,7 +21,7 @@ class FNN(nn.Module):
     def __init__(self, input_dim, modal):
         super().__init__() 
 
-        unimodal = nn.Sequential(
+        unimodal_stack = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU() ,
             nn.Dropout(0.3),
@@ -38,7 +38,7 @@ class FNN(nn.Module):
             nn.Sigmoid()
         )
 
-        bimodal = nn.Sequential(
+        bimodal_stack = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.ReLU() ,
             nn.Dropout(0.3),
@@ -61,7 +61,7 @@ class FNN(nn.Module):
             nn.Sigmoid()
         )
 
-        trimodal = nn.Sequential(
+        trimodal_stack = nn.Sequential(
             nn.Linear(input_dim, 192),
             nn.ReLU() ,
             nn.Dropout(0.3),
@@ -82,19 +82,19 @@ class FNN(nn.Module):
         )
 
         if len(modal) == 3:
-            self.stack = trimodal
+            self.stack = trimodal_stack
         elif len(modal) == 2:
-            self.stack = bimodal 
+            self.stack = bimodal_stack
         else:
-            self.stack = unimodal
+            self.stack = unimodal_stack
 
     def forward(self, x):
         y = self.stack(x) 
         return y
 
+
 def clustering(id, TP):
-    trait = id[4]
-    return trait
+    return 1
 
 def load_data(testuser, modal, version):
     path = f'../../data/Hazumi_features/Hazumi{version}_features.pkl'
@@ -109,7 +109,7 @@ def load_data(testuser, modal, version):
 
     for user in vid:
         user_cluster = clustering(user, TP)
-        label = pd.DataFrame(TS[user])
+        label = pd.DataFrame(SS[user])
         data = [] 
         if 't' in modal:
             text = pd.DataFrame(Text[user])
@@ -176,12 +176,36 @@ if __name__ == '__main__':
         2. モデルの構築
         '''
         model = FNN(input_dim, args.modal).to(device)
+        model.load_state_dict(torch.load(f'results/model/{args.modal}/model.pth'))
+
+
+        for param in model.parameters():
+            param.requires_grad = False
+
+        for param in model.stack[0].parameters():
+            param.requires_grad = True 
+
+        for param in model.stack[3].parameters():
+            param.requires_grad = True 
+
+        for param in model.stack[6].parameters():
+            param.requires_grad = True 
+
+        for param in model.stack[9].parameters():
+            param.requires_grad = True 
+
+        for param in model.stack[12].parameters():
+            param.requires_grad = True 
+
+        for param in model.stack[15].parameters():
+            param.requires_grad = True 
+
 
         '''
         3. モデルの学習
         '''
         criterion = nn.BCELoss() 
-        optimizer = optimizers.Adam(model.parameters(), lr=0.001)
+        optimizer = optimizers.Adam(model.parameters(), lr=0.01)
 
         def train_step(x, y):
             model.train() 
