@@ -6,95 +6,46 @@ import pandas as pd
 from sklearn.utils import shuffle 
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import train_test_split
 import torch 
 import torch.nn as nn 
 import torch.optim as optimizers 
+import matplotlib.pyplot as plt
 
 import sys 
 sys.path.append("../")
 from utils import get_files
-
-class FNN(nn.Module):
-    '''
-    多層パーセプトロン
-    '''
-    def __init__(self, input_dim, modal):
-        super().__init__() 
-
-        unimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        bimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        trimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 192),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(192, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        if len(modal) == 3:
-            self.stack = trimodal_stack
-        elif len(modal) == 2:
-            self.stack = bimodal_stack
-        else:
-            self.stack = unimodal_stack
-
-    def forward(self, x):
-        y = self.stack(x) 
-        return y
+from model import FNN
 
 
 def clustering(id, TP):
-    return 1
+    age = int(id[5])
+    gender = id[4]
+
+    # 性別
+    # if gender == 'F':
+    #     res = 0
+    # else:
+    #     res = 1
+
+    # 年齢 40 <=, 40 >
+    # if age > 4:
+    #     res = 0
+    # else:
+    #     res = 1
+
+    # 年齢 30 <=, 50 <=, 50 > 
+    # if age <= 3:
+    #     res = 0 
+    # elif age <= 5:
+    #     res = 1
+    # else:
+    #     res = 2
+    
+    # 年齢 20, 30, 40, 50, 60, 70
+    res = age
+
+    return res
 
 def load_data(testuser, modal, version):
     path = f'../../data/Hazumi_features/Hazumi{version}_features.pkl'
@@ -145,8 +96,9 @@ if __name__ == '__main__':
     '''
     0. 前準備
     '''
-    np.random.seed(123)
-    torch.manual_seed(123)
+    seed_num = 122
+    np.random.seed(seed_num)
+    torch.manual_seed(seed_num)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     parser = argparse.ArgumentParser()
@@ -171,6 +123,7 @@ if __name__ == '__main__':
         1. データの準備
         '''
         x_train, y_train, x_test, y_test = load_data(test_user, args.modal, args.version)
+        x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train)
 
         '''
         2. モデルの構築
@@ -182,14 +135,14 @@ if __name__ == '__main__':
         for param in model.parameters():
             param.requires_grad = False
 
-        for param in model.stack[0].parameters():
-            param.requires_grad = True 
+        # for param in model.stack[0].parameters():
+        #     param.requires_grad = True 
 
-        for param in model.stack[3].parameters():
-            param.requires_grad = True 
+        # for param in model.stack[3].parameters():
+        #     param.requires_grad = True 
 
-        for param in model.stack[6].parameters():
-            param.requires_grad = True 
+        # for param in model.stack[6].parameters():
+        #     param.requires_grad = True 
 
         for param in model.stack[9].parameters():
             param.requires_grad = True 
@@ -205,7 +158,7 @@ if __name__ == '__main__':
         3. モデルの学習
         '''
         criterion = nn.BCELoss() 
-        optimizer = optimizers.Adam(model.parameters(), lr=0.01)
+        optimizer = optimizers.Adam(model.parameters(), lr=0.0001)
 
         def train_step(x, y):
             model.train() 
@@ -214,11 +167,21 @@ if __name__ == '__main__':
             optimizer.zero_grad() 
             loss.backward() 
             optimizer.step() 
-            return loss 
+            return loss
+
+        def test_step(x, y):
+            x = torch.Tensor(x).to(device) 
+            y = torch.Tensor(y).to(device).reshape(-1, 1)
+            model.eval() 
+            preds = model(x) 
+            loss = criterion(preds, y)
+            return loss, preds 
         
         epochs = 30
         batch_size = 32
         n_batches = x_train.shape[0] // batch_size 
+        Acc = []
+        F1 = []
             
         for epoch in range(epochs):
             train_loss = 0.
@@ -232,19 +195,31 @@ if __name__ == '__main__':
                 loss = train_step(x_[start:end], y_[start:end])
                 train_loss += loss.item() 
 
+            loss, preds = test_step(x_valid, y_valid)
+            valid_loss = loss.item() 
+            preds = (preds.data.cpu().numpy() > 0.5).astype(int).reshape(-1)
+            valid_acc = accuracy_score(y_valid, preds) 
+            Acc.append(valid_acc)
+            valid_f1 = f1_score(y_valid, preds)
+            F1.append(valid_f1)
             # print('epoch: {}, loss: {:.3}'.format(epoch+1, train_loss))
+        
+
+        def plot_loss(loss):
+            sizes = [i for i in range(len(loss))]
+            plt.figure()
+            plt.title(f"user id : {test_user}")
+            plt.xlabel("epoch")
+            plt.ylabel("BCE Loss")
+            plt.plot(sizes, loss, 'o-', color="r", label="Train")
+            plt.legend(loc="best")
+            plt.show()
+        
+        # plot_loss(Acc)
 
         '''
         4. モデルの評価
         '''
-        def test_step(x, y):
-            x = torch.Tensor(x).to(device) 
-            y = torch.Tensor(y).to(device).reshape(-1, 1)
-            model.eval() 
-            preds = model(x) 
-            loss = criterion(preds, y)
-            return loss, preds 
-        
         loss, preds = test_step(x_test, y_test)  
         test_loss = loss.item() 
         preds = (preds.data.cpu().numpy() > 0.5).astype(int).reshape(-1)

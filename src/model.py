@@ -2,6 +2,84 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
+class FNN(nn.Module):
+    '''
+    多層パーセプトロン
+    '''
+    def __init__(self, input_dim, modal):
+        super().__init__() 
+
+        unimodal = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+
+        bimodal = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(128, 128),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+
+        trimodal = nn.Sequential(
+            nn.Linear(input_dim, 192),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(192, 64),
+            nn.ReLU() ,
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(), 
+            nn.Dropout(0.3),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+
+        if len(modal) == 3:
+            self.stack = trimodal
+        elif len(modal) == 2:
+            self.stack = bimodal 
+        else:
+            self.stack = unimodal
+
+    def forward(self, x):
+        y = self.stack(x) 
+        return y
+
 class NN(nn.Module):
     def __init__(self, input_size=768, hidden_size=100, output_size=2):
         super(NN, self).__init__()

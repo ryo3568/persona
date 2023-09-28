@@ -13,84 +13,7 @@ import torch.optim as optimizers
 import sys 
 sys.path.append("../")
 from utils import get_files
-
-class FNN(nn.Module):
-    '''
-    多層パーセプトロン
-    '''
-    def __init__(self, input_dim, modal):
-        super().__init__() 
-
-        unimodal = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        bimodal = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        trimodal = nn.Sequential(
-            nn.Linear(input_dim, 192),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(192, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        if len(modal) == 3:
-            self.stack = trimodal
-        elif len(modal) == 2:
-            self.stack = bimodal 
-        else:
-            self.stack = unimodal
-
-    def forward(self, x):
-        y = self.stack(x) 
-        return y
+from model import FNN
 
 def clustering(id, TP):
     trait = id[4]
@@ -109,7 +32,7 @@ def load_data(testuser, modal, version):
 
     for user in vid:
         user_cluster = clustering(user, TP)
-        label = pd.DataFrame(TS[user])
+        label = pd.DataFrame(SS[user])
         data = [] 
         if 't' in modal:
             text = pd.DataFrame(Text[user])
