@@ -15,39 +15,41 @@ import matplotlib.pyplot as plt
 import sys 
 sys.path.append("../")
 from utils import get_files
+from utils.EarlyStopping import EarlyStopping
 from model import FNN
 
 
-def clustering(id, TP):
+def clustering(id, mode):
     age = int(id[5])
     gender = id[4]
 
-    # 性別
-    # if gender == 'F':
-    #     res = 0
-    # else:
-    #     res = 1
-
-    # 年齢 40 <=, 40 >
-    # if age > 4:
-    #     res = 0
-    # else:
-    #     res = 1
-
-    # 年齢 30 <=, 50 <=, 50 > 
-    # if age <= 3:
-    #     res = 0 
-    # elif age <= 5:
-    #     res = 1
-    # else:
-    #     res = 2
-    
-    # 年齢 20, 30, 40, 50, 60, 70
-    res = age
-
+    if mode == 0:
+        res = 0
+    elif mode == 1:
+        # 性別
+        if gender == 'F':
+            res = 0
+        else: res = 1
+    elif mode == 2:
+        # 年齢 40 <=, 40 >
+        if age <= 4:
+            res = 0
+        else:
+            res = 1
+    elif mode == 3:
+        # 年齢 30 <=, 50 <=, 50 > 
+        if age <= 3:
+            res = 0 
+        elif age <= 5:
+            res = 1
+        else:
+            res = 2
+    elif mode == 4: 
+        # 年齢 20, 30, 40, 50, 60, 70
+        res = age - 2
     return res
 
-def load_data(testuser, modal, version):
+def load_data(testuser, modal, version, mode):
     path = f'../../data/Hazumi_features/Hazumi{version}_features.pkl'
     SS, TS, _, TP, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
@@ -56,10 +58,10 @@ def load_data(testuser, modal, version):
     X_test = []
     Y_test = []
     
-    test_cluster = clustering(testuser, TP)
+    test_cluster = clustering(testuser, mode)
 
     for user in vid:
-        user_cluster = clustering(user, TP)
+        user_cluster = clustering(user, mode)
         label = pd.DataFrame(SS[user])
         data = [] 
         if 't' in modal:
@@ -90,23 +92,29 @@ def load_data(testuser, modal, version):
     X_test = pd.concat(X_test).values
     Y_test = pd.concat(Y_test).values
 
-    return X_train, Y_train, X_test, Y_test
+    return X_train, Y_train, X_test, Y_test, test_cluster
 
 if __name__ == '__main__':
     '''
     0. 前準備
     '''
-    seed_num = 122
-    np.random.seed(seed_num)
-    torch.manual_seed(seed_num)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
+    parser.add_argument('--tuning', type=int, default=-1)
+    parser.add_argument('--mode', type=int, default=0)
+    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--seed', type=int, default=123)
+    parser.add_argument('--plot', action='store_true', default=False)
     args = parser.parse_args()
 
     users = get_files(args.version)
+    seed_num = args.seed
+    np.random.seed(seed_num)
+    torch.manual_seed(seed_num)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     Acc = []
     F1 = []
@@ -118,47 +126,43 @@ if __name__ == '__main__':
         input_dim += 384
     if 'v' in args.modal:
         input_dim += 66
+
+    results = [0, 0, 0, 0, 0, 0]
+    counts = [0, 0, 0, 0, 0, 0]
+
     for test_user in tqdm(users):
         '''
         1. データの準備
         '''
-        x_train, y_train, x_test, y_test = load_data(test_user, args.modal, args.version)
+        x_train, y_train, x_test, y_test, test_gclass = load_data(test_user, args.modal, args.version, args.mode)
         x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train)
 
         '''
         2. モデルの構築
         '''
         model = FNN(input_dim, args.modal).to(device)
-        model.load_state_dict(torch.load(f'results/model/{args.modal}/model.pth'))
+        if args.tuning >= 0:
+            # mode_path = ["all", "gender", "age2", "age3", "age6"]
+            # model.load_state_dict(torch.load(f'results/model/{mode_path[args.mode]}/{args.modal}/model-{test_gclass}.pth'))
+            model.load_state_dict(torch.load(f'results/model/all/{args.modal}/model-0.pth'))
 
+            for param in model.parameters():
+                param.requires_grad = False
 
-        for param in model.parameters():
-            param.requires_grad = False
+            if args.modal == 't': 
+                linear_num = [12, 9, 6, 3, 0]
+            else:
+                linear_num = [15, 12, 9, 6, 3, 0]
 
-        # for param in model.stack[0].parameters():
-        #     param.requires_grad = True 
-
-        # for param in model.stack[3].parameters():
-        #     param.requires_grad = True 
-
-        # for param in model.stack[6].parameters():
-        #     param.requires_grad = True 
-
-        for param in model.stack[9].parameters():
-            param.requires_grad = True 
-
-        for param in model.stack[12].parameters():
-            param.requires_grad = True 
-
-        for param in model.stack[15].parameters():
-            param.requires_grad = True 
-
+            for i in range(args.tuning):
+                for param in model.stack[linear_num[i]].parameters():
+                    param.requires_grad = True
 
         '''
         3. モデルの学習
         '''
         criterion = nn.BCELoss() 
-        optimizer = optimizers.Adam(model.parameters(), lr=0.0001)
+        optimizer = optimizers.Adam(model.parameters(), lr=args.lr)
 
         def train_step(x, y):
             model.train() 
@@ -176,46 +180,44 @@ if __name__ == '__main__':
             preds = model(x) 
             loss = criterion(preds, y)
             return loss, preds 
-        
-        epochs = 30
-        batch_size = 32
-        n_batches = x_train.shape[0] // batch_size 
-        Acc = []
-        F1 = []
-            
-        for epoch in range(epochs):
-            train_loss = 0.
-            x_, y_ = shuffle(x_train, y_train)
-            x_ = torch.Tensor(x_).to(device)
-            y_ = torch.Tensor(y_).to(device).reshape(-1, 1)
 
-            for n_batch in range(n_batches):
-                start = n_batch * batch_size 
-                end = start + batch_size 
-                loss = train_step(x_[start:end], y_[start:end])
-                train_loss += loss.item() 
-
-            loss, preds = test_step(x_valid, y_valid)
-            valid_loss = loss.item() 
-            preds = (preds.data.cpu().numpy() > 0.5).astype(int).reshape(-1)
-            valid_acc = accuracy_score(y_valid, preds) 
-            Acc.append(valid_acc)
-            valid_f1 = f1_score(y_valid, preds)
-            F1.append(valid_f1)
-            # print('epoch: {}, loss: {:.3}'.format(epoch+1, train_loss))
-        
-
-        def plot_loss(loss):
+        def plot_loss(loss, acc, f1):
             sizes = [i for i in range(len(loss))]
             plt.figure()
-            plt.title(f"user id : {test_user}")
+            plt.title(f"user id : {test_user}, Acc: {acc}, F1: {f1}")
             plt.xlabel("epoch")
             plt.ylabel("BCE Loss")
             plt.plot(sizes, loss, 'o-', color="r", label="Train")
             plt.legend(loc="best")
             plt.show()
         
-        # plot_loss(Acc)
+        epochs = args.epochs
+        batch_size = 32
+        n_batches = x_train.shape[0] // batch_size 
+        val_losses = []
+
+        es = EarlyStopping(patience=5)
+        
+        if args.tuning != 0:
+            for epoch in range(epochs):
+                train_loss = 0.
+                x_, y_ = shuffle(x_train, y_train)
+                x_ = torch.Tensor(x_).to(device)
+                y_ = torch.Tensor(y_).to(device).reshape(-1, 1)
+
+                for n_batch in range(n_batches):
+                    start = n_batch * batch_size 
+                    end = start + batch_size 
+                    loss = train_step(x_[start:end], y_[start:end])
+                    train_loss += loss.item() 
+
+                val_loss, _ = test_step(x_valid, y_valid)
+                val_loss = val_loss.item() 
+                val_losses.append(val_loss)
+
+                if es(val_loss):
+                    print(f"uid: {test_user}, epoch: {epoch} / {args.epochs}, early stopping")
+                    break
 
         '''
         4. モデルの評価
@@ -223,13 +225,20 @@ if __name__ == '__main__':
         loss, preds = test_step(x_test, y_test)  
         test_loss = loss.item() 
         preds = (preds.data.cpu().numpy() > 0.5).astype(int).reshape(-1)
-        test_acc = accuracy_score(y_test, preds) 
-        test_f1 = f1_score(y_test, preds)
+        test_acc = round(accuracy_score(y_test, preds), 3)
+        test_f1 = round(f1_score(y_test, preds), 3)
 
         # print('test user: {}, test_acc: {:.3f}, test_f1: {:.3f}'.format(test_user, test_acc, test_f1))
 
         Acc.append(test_acc)
         F1.append(test_f1)
+
+        cluster = clustering(test_user, args.mode)
+        results[cluster] += test_f1
+        counts[cluster] += 1
+
+        if args.plot:
+            plot_loss(val_losses, test_acc, test_f1)
 
         '''
         5. モデルの保存 
@@ -238,3 +247,6 @@ if __name__ == '__main__':
     
     print('========== Results ==========')
     print('acc: {:.3f}, f1: {:.3f}'.format(sum(Acc)/len(Acc), sum(F1)/len(F1)))
+
+    for i in range(6):
+        print(f"cluster{i} : {results[i] / counts[i]}")

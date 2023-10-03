@@ -14,105 +14,54 @@ import torch.optim as optimizers
 import sys 
 sys.path.append("../")
 from utils import get_files
+from model import FNN
 
-class FNN(nn.Module):
-    '''
-    多層パーセプトロン
-    '''
-    def __init__(self, input_dim, modal):
-        super().__init__() 
+def clustering(id, mode):
+    age = int(id[5])
+    gender = id[4]
 
-        unimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        bimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 128),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        trimodal_stack = nn.Sequential(
-            nn.Linear(input_dim, 192),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(192, 64),
-            nn.ReLU() ,
-            nn.Dropout(0.3),
-            nn.Linear(64, 64),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
-            nn.ReLU(), 
-            nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
-        )
-
-        if len(modal) == 3:
-            self.stack = trimodal_stack
-        elif len(modal) == 2:
-            self.stack = bimodal_stack
+    if mode == 0:
+        res = 0
+    elif mode == 1:
+        # 性別
+        if gender == 'F':
+            res = 0
         else:
-            self.stack = unimodal_stack
+            res = 1
+    elif mode == 2:
+        # 年齢 40 <=, 40 >
+        if age <= 4:
+            res = 0
+        else:
+            res = 1
+    elif mode == 3:
+        # 年齢 30 <=, 50 <=, 50 > 
+        if age <= 3:
+            res = 0 
+        elif age <= 5:
+            res = 1
+        else:
+            res = 2
+    elif mode == 4: 
+        # 年齢 20, 30, 40, 50, 60, 70
+        res = age - 2
+    return res
 
-    def forward(self, x):
-        y = self.stack(x) 
-        return y
-
-def clustering(id, TP):
-    return 1
-
-def load_data(modal, version):
-    # path = f'../../data/Hazumi_features/Hazumi{version}_features.pkl'
+def load_data(modal, mode, gclass):
     path = f'../../data/Hazumi_features/Hazumiall_features.pkl'
     SS, TS, _, TP, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+    user_num = 0
 
     X_train = [] 
     Y_train = []
     X_test = []
     Y_test = []
     
-    # test_cluster = clustering(testuser, TP)
-
     X = [] 
     Y = []
 
     for user in vid:
-        # user_cluster = clustering(user, TP)
+        user_cluster = clustering(user, mode)
         label = pd.DataFrame(TS[user])
         data = [] 
         if 't' in modal:
@@ -131,9 +80,12 @@ def load_data(modal, version):
             visual = pd.DataFrame(visual)
             data.append(visual)
         data = pd.concat(data, axis=1)
-        X.append(data)
-        Y.append(label)
+        if user_cluster == gclass:
+            user_num += 1
+            X.append(data)
+            Y.append(label)
     
+    print(f"user_num = {user_num}")
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
 
     X_train = pd.concat(X_train).values
@@ -147,13 +99,16 @@ if __name__ == '__main__':
     '''
     0. 前準備
     '''
-    np.random.seed(123)
-    torch.manual_seed(123)
+    seed_num = 123
+    np.random.seed(seed_num)
+    torch.manual_seed(seed_num)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', type=str, default="1911")
     parser.add_argument('--modal', type=str, default="tav")
+    parser.add_argument('--mode', type=int, default=0)
+    parser.add_argument('--gclass', type=int, default=0)
     args = parser.parse_args()
 
     users = get_files(args.version)
@@ -172,7 +127,7 @@ if __name__ == '__main__':
     '''
     1. データの準備
     '''
-    x_train, y_train, x_test, y_test = load_data(args.modal, args.version)
+    x_train, y_train, x_test, y_test = load_data(args.modal, args.mode, args.gclass)
 
     '''
     2. モデルの構築
@@ -234,5 +189,7 @@ if __name__ == '__main__':
     '''
     5. モデルの保存 
     '''
-    torch.save(model.state_dict(), f'results/model/{args.modal}/model.pth')
+    mode_path = ["all", "gender", "age2", "age3", "age6"]
+    torch.save(model.state_dict(), f'results/model/{mode_path[args.mode]}/{args.modal}/model-{args.gclass}.pth')
+
     
