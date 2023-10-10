@@ -115,6 +115,7 @@ if __name__ == '__main__':
     np.random.seed(seed_num)
     torch.manual_seed(seed_num)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = 'cpu'
 
     Acc = []
     F1 = []
@@ -144,7 +145,7 @@ if __name__ == '__main__':
         if args.tuning >= 0:
             # mode_path = ["all", "gender", "age2", "age3", "age6"]
             # model.load_state_dict(torch.load(f'results/model/{mode_path[args.mode]}/{args.modal}/model-{test_gclass}.pth'))
-            model.load_state_dict(torch.load(f'results/model/all/{args.modal}/model-0.pth'))
+            model.load_state_dict(torch.load(f'results/model/all/{args.modal}/model-cpu.pth'))
 
             for param in model.parameters():
                 param.requires_grad = False
@@ -243,7 +244,7 @@ if __name__ == '__main__':
         '''
         5. モデルの保存 
         '''
-        # torch.save(model.state_dict(), f'../data/model/model_weight{args.version}.pth')
+        torch.save(model.state_dict(), f'results/model/all/model-cpu.pth')
     
     print('========== Results ==========')
     print('acc: {:.3f}, f1: {:.3f}'.format(sum(Acc)/len(Acc), sum(F1)/len(F1)))

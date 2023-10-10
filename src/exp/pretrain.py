@@ -102,7 +102,8 @@ if __name__ == '__main__':
     seed_num = 123
     np.random.seed(seed_num)
     torch.manual_seed(seed_num)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = "cpu"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', type=str, default="1911")
@@ -110,9 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=int, default=0)
     parser.add_argument('--gclass', type=int, default=0)
     args = parser.parse_args()
-
-    users = get_files(args.version)
-
+     
     Acc = []
     F1 = []
 
@@ -191,5 +190,6 @@ if __name__ == '__main__':
     '''
     mode_path = ["all", "gender", "age2", "age3", "age6"]
     torch.save(model.state_dict(), f'results/model/{mode_path[args.mode]}/{args.modal}/model-{args.gclass}.pth')
+    # torch.save(model.state_dict(), f'results/model/all/{args.modal}/model-cpu')
 
     
