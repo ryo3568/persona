@@ -12,27 +12,21 @@ import torch.optim as optimizers
 
 import sys 
 sys.path.append("../")
-from utils import get_files
+from utils import get_files, profiling, torch_fix_seed
 from model import FNN
 
-def clustering(id, TP):
-    trait = id[4]
-    return trait
-
-def load_data(testuser, modal, version):
-    path = f'../../data/Hazumi_features/Hazumi{version}_features.pkl'
-    SS, TS, _, TP, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+def load_data(testuser, modal, mode):
+    path = f'../../data/Hazumi_features/Hazumi1911_features.pkl'
+    SS, _, _, _, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
     X_train = [] 
     Y_train = []
-    X_test = []
-    Y_test = []
     
-    test_cluster = clustering(testuser, TP)
+    test_cluster = profiling(testuser, mode)
 
     for user in vid:
-        user_cluster = clustering(user, TP)
-        label = pd.DataFrame(SS[user])
+        user_cluster = profiling(user, mode)
+        label = SS[user]
         data = [] 
         if 't' in modal:
             text = pd.DataFrame(Text[user])
@@ -49,18 +43,19 @@ def load_data(testuser, modal, version):
             visual = stds.fit_transform(visual)
             visual = pd.DataFrame(visual)
             data.append(visual)
-        data = pd.concat(data, axis=1)
+        data = pd.concat(data, axis=1).values
         if user == testuser:
-            X_test.append(data)
-            Y_test.append(label)
+            X_test = data
+            Y_test = label
         elif user_cluster == test_cluster:
-            X_train.append(data)
-            Y_train.append(label)
+            X_train.extend(data)
+            Y_train.extend(label)
+    
+    X_train = np.array(X_train)
+    Y_train = np.array(Y_train)
+    X_test = np.array(X_test)
+    Y_test = np.array(Y_test)
 
-    X_train = pd.concat(X_train).values
-    Y_train = pd.concat(Y_train).values
-    X_test = pd.concat(X_test).values
-    Y_test = pd.concat(Y_test).values
 
     return X_train, Y_train, X_test, Y_test
 
@@ -68,16 +63,15 @@ if __name__ == '__main__':
     '''
     0. 前準備
     '''
-    np.random.seed(123)
-    torch.manual_seed(123)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    torch_fix_seed(123)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--version', type=str, default="1911")
-    parser.add_argument('--modal', type=str, default="tav")
+    parser.add_argument('--modal', type=str, default="t")
+    parser.add_argument('--mode', type=int, default=0)
     args = parser.parse_args()
 
-    users = get_files(args.version)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    users = get_files("1911")
 
     Acc = []
     F1 = []
@@ -89,11 +83,12 @@ if __name__ == '__main__':
         input_dim += 384
     if 'v' in args.modal:
         input_dim += 66
+
     for test_user in tqdm(users):
         '''
         1. データの準備
         '''
-        x_train, y_train, x_test, y_test = load_data(test_user, args.modal, args.version)
+        x_train, y_train, x_test, y_test = load_data(test_user, args.modal, args.mode)
 
         '''
         2. モデルの構築
@@ -103,7 +98,7 @@ if __name__ == '__main__':
         '''
         3. モデルの学習
         '''
-        criterion = nn.BCELoss() 
+        criterion = nn.CrossEntropyLoss() 
         optimizer = optimizers.Adam(model.parameters(), lr=0.001)
 
         def train_step(x, y):
@@ -123,7 +118,7 @@ if __name__ == '__main__':
             train_loss = 0.
             x_, y_ = shuffle(x_train, y_train)
             x_ = torch.Tensor(x_).to(device)
-            y_ = torch.Tensor(y_).to(device).reshape(-1, 1)
+            y_ = torch.Tensor(y_).long().to(device)
 
             for n_batch in range(n_batches):
                 start = n_batch * batch_size 
@@ -137,20 +132,23 @@ if __name__ == '__main__':
         4. モデルの評価
         '''
         def test_step(x, y):
-            x = torch.Tensor(x).to(device) 
-            y = torch.Tensor(y).to(device).reshape(-1, 1)
             model.eval() 
             preds = model(x) 
             loss = criterion(preds, y)
+            preds = torch.argmax(preds, dim=1)
             return loss, preds 
-        
+
+        x_test = torch.Tensor(x_test).to(device) 
+        y_test = torch.Tensor(y_test).long().to(device)
         loss, preds = test_step(x_test, y_test)  
         test_loss = loss.item() 
-        preds = (preds.data.cpu().numpy() > 0.5).astype(int).reshape(-1)
-        test_acc = accuracy_score(y_test, preds) 
-        test_f1 = f1_score(y_test, preds)
+        y_test = y_test.cpu()
+        preds = preds.cpu()
 
-        # print('test user: {}, test_acc: {:.3f}, test_f1: {:.3f}'.format(test_user, test_acc, test_f1))
+        test_acc = accuracy_score(y_test, preds) 
+        test_f1 = f1_score(y_test, preds, average="weighted")
+
+        print('test user: {}, test_acc: {:.3f}, test_f1: {:.3f}'.format(test_user, test_acc, test_f1))
 
         Acc.append(test_acc)
         F1.append(test_f1)

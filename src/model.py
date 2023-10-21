@@ -22,8 +22,7 @@ class FNN(nn.Module):
             nn.Linear(32, 32),
             nn.ReLU(), 
             nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
+            nn.Linear(32, 3),
         )
 
         bimodal = nn.Sequential(
@@ -45,8 +44,7 @@ class FNN(nn.Module):
             nn.Linear(32, 32),
             nn.ReLU(), 
             nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
+            nn.Linear(32, 3),
         )
 
         trimodal = nn.Sequential(
@@ -65,8 +63,7 @@ class FNN(nn.Module):
             nn.Linear(32, 32),
             nn.ReLU(), 
             nn.Dropout(0.3),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
+            nn.Linear(32, 3),
         )
 
         if len(modal) == 3:
@@ -77,7 +74,52 @@ class FNN(nn.Module):
             self.stack = unimodal
 
     def forward(self, x):
-        y = self.stack(x) 
+        x = self.stack(x) 
+        y = F.softmax(x, dim=1)
+        return y
+
+class FNNUniModel(nn.Module):
+    def __init__(self, input_dim):
+        super(FNNUniModel, self).__init__()
+
+        self.fc1 = nn.Linear(input_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 1)
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        h = self.fc1(x)
+        h = F.relu(h)
+        h = self.dropout(h)
+        h = self.fc2(h)
+        h = F.relu(h)
+        h = self.dropout(h)
+        h = self.fc3(h)
+        y = torch.sigmoid(h)
+        
+        return y
+
+class GRUModel(nn.Module):
+    def __init__(self, input_dim):
+        super(GRUModel, self).__init__()
+
+        self.fc1 = nn.Linear(input_dim, 64)
+        self.gru = nn.GRU(input_size=64, hidden_size=64, batch_first=True)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 1)
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        h = self.fc1(x)
+        h = F.relu(h)
+        h = self.dropout(h)
+        h, _ = self.gru(h)
+        h = self.fc2(h)
+        h = F.relu(h)
+        h = self.dropout(h)
+        h = self.fc3(h)
+        y = F.sigmoid(h)
+        
         return y
 
 class NN(nn.Module):

@@ -1,8 +1,6 @@
 import random 
-import string 
 import os
 import glob
-import collections
 import numpy as np
 import pandas as pd 
 from sklearn.metrics import confusion_matrix
@@ -10,8 +8,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import torch
 
-def randomname(n):
-   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
 def get_files(version='1911'):
     testfiles1712 = []
@@ -51,21 +47,39 @@ def get_files(version='1911'):
         testfiles = sorted(testfiles)
     return testfiles
 
-def clusteringv2(data, n_clusters=4):
-    df = pd.DataFrame.from_dict(data, orient='index')
-    index = df.index
 
-    model = KMeans(n_clusters=n_clusters, random_state=0) 
-    model.fit(df)
-    pred = model.predict(df)
+def profiling(id, mode):
+    age = int(id[5])
+    gender = id[4]
 
-    cluster = {} 
-    for i, id in enumerate(index):
-        cluster[id] = pred[i]
+    if mode == 0:
+        res = 0
+    elif mode == 1:
+        # 性別
+        if gender == 'F':
+            res = 0
+        else:
+            res = 1
+    elif mode == 2:
+        # 年齢 40 <=, 40 >
+        if age <= 4:
+            res = 0
+        else:
+            res = 1
+    elif mode == 3:
+        # 年齢 30 <=, 50 <=, 50 > 
+        if age <= 3:
+            res = 0 
+        elif age <= 5:
+            res = 1
+        else:
+            res = 2
+    elif mode == 4: 
+        # 年齢 20, 30, 40, 50, 60, 70
+        res = age - 2
+    return res
 
-    return cluster
-
-def clustering(data, testfile, n_clusters=4):
+def clusteringv1(data, testfile, n_clusters=4):
     columns = ['E', 'A', 'C', 'N', 'O']
     test_data = {}
     test_data[testfile] = data.pop(testfile)
@@ -84,7 +98,6 @@ def clustering(data, testfile, n_clusters=4):
     # test_df = pd.DataFrame(test_df)
     # test_df.index = [testfile]
 
-
     model = KMeans(n_clusters=n_clusters, random_state=0) 
     model.fit(df)
     pred = model.predict(df)
@@ -98,6 +111,20 @@ def clustering(data, testfile, n_clusters=4):
     dist = round(dist[0][cluster[testfile]], 3)
 
     return cluster, dist
+
+def clusteringv2(data, n_clusters=4):
+    df = pd.DataFrame.from_dict(data, orient='index')
+    index = df.index
+
+    model = KMeans(n_clusters=n_clusters, random_state=0) 
+    model.fit(df)
+    pred = model.predict(df)
+
+    cluster = {} 
+    for i, id in enumerate(index):
+        cluster[id] = pred[i]
+
+    return cluster
 
 def dict_standardize(data, vid):
     columns = ['E', 'A', 'C', 'N', 'O']
