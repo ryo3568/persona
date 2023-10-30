@@ -55,7 +55,8 @@ if __name__ == '__main__':
     parser.add_argument('--balanced', action="store_true", default=False, help="class_weight is balanced")
     args = parser.parse_args()
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = 'cpu'
 
     path = f'../../data/Hazumi_features/Hazumiall_features_binary.pkl'
     _, _, _, _, _, _, _, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
@@ -179,7 +180,8 @@ if __name__ == '__main__':
         if args.balanced:
             torch.save(model.state_dict(), f'results/binary/fnn/model-balanced-{args.profile}-{profile_n}.pth')
         else:
-            torch.save(model.state_dict(), f'results/binary/fnn/model-{args.profile}-{profile_n}.pth')
+            # torch.save(model.state_dict(), f'results/binary/fnn/model-{args.profile}-{profile_n}.pth')
+            torch.save(model.state_dict(), f'results/binary/fnn/cpu-model-{args.profile}-{profile_n}.pth')
         
     print("================== Results ===================")
     print(f"results = ", results)
