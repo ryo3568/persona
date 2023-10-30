@@ -1,0 +1,235 @@
+1911F2001:
+  acc: 0.887
+  auc: 0.581
+  confusion matrix:
+  - - 0
+    - 6
+  - - 2
+    - 63
+  f1: 0.861
+1911F2002:
+  acc: 0.876
+  auc: 0.741
+  confusion matrix:
+  - - 1
+    - 13
+  - - 1
+    - 98
+  f1: 0.833
+1911F3001:
+  acc: 0.824
+  auc: 0.562
+  confusion matrix:
+  - - 0
+    - 13
+  - - 0
+    - 61
+  f1: 0.745
+1911F3002:
+  acc: 0.883
+  auc: 0.712
+  confusion matrix:
+  - - 0
+    - 8
+  - - 1
+    - 68
+  f1: 0.84
+1911F3003:
+  acc: 0.867
+  auc: 0.758
+  confusion matrix:
+  - - 0
+    - 12
+  - - 1
+    - 85
+  f1: 0.815
+1911F4001:
+  acc: 0.804
+  auc: 0.699
+  confusion matrix:
+  - - 0
+    - 18
+  - - 1
+    - 78
+  f1: 0.726
+1911F4002:
+  acc: 0.736
+  auc: 0.672
+  confusion matrix:
+  - - 3
+    - 28
+  - - 1
+    - 78
+  f1: 0.654
+1911F4003:
+  acc: 0.911
+  auc: 0.789
+  confusion matrix:
+  - - 1
+    - 8
+  - - 0
+    - 81
+  f1: 0.878
+1911F5001:
+  acc: 0.918
+  auc: 0.82
+  confusion matrix:
+  - - 2
+    - 9
+  - - 0
+    - 99
+  f1: 0.892
+1911F5002:
+  acc: 0.858
+  auc: 0.694
+  confusion matrix:
+  - - 0
+    - 16
+  - - 0
+    - 97
+  f1: 0.793
+1911F6001:
+  acc: 0.901
+  auc: 0.801
+  confusion matrix:
+  - - 1
+    - 8
+  - - 0
+    - 72
+  f1: 0.864
+1911F6002:
+  acc: 0.917
+  auc: 0.919
+  confusion matrix:
+  - - 3
+    - 7
+  - - 0
+    - 74
+  f1: 0.896
+1911F6003:
+  acc: 1.0
+  auc: .nan
+  confusion matrix:
+  - - 84
+  f1: 1.0
+1911F7002:
+  acc: 0.866
+  auc: 0.792
+  confusion matrix:
+  - - 2
+    - 11
+  - - 2
+    - 82
+  f1: 0.834
+1911M2001:
+  acc: 0.833
+  auc: 0.724
+  confusion matrix:
+  - - 2
+    - 16
+  - - 0
+    - 78
+  f1: 0.774
+1911M2002:
+  acc: 0.95
+  auc: 0.819
+  confusion matrix:
+  - - 0
+    - 5
+  - - 0
+    - 96
+  f1: 0.926
+1911M2003:
+  acc: 0.939
+  auc: 0.479
+  confusion matrix:
+  - - 0
+    - 6
+  - - 0
+    - 92
+  f1: 0.909
+1911M4001:
+  acc: 0.811
+  auc: 0.506
+  confusion matrix:
+  - - 0
+    - 18
+  - - 0
+    - 77
+  f1: 0.726
+1911M4002:
+  acc: 0.813
+  auc: 0.607
+  confusion matrix:
+  - - 0
+    - 20
+  - - 0
+    - 87
+  f1: 0.729
+1911M5001:
+  acc: 0.837
+  auc: 0.877
+  confusion matrix:
+  - - 3
+    - 15
+  - - 2
+    - 84
+  f1: 0.796
+1911M5002:
+  acc: 0.987
+  auc: 0.079
+  confusion matrix:
+  - - 0
+    - 1
+  - - 0
+    - 76
+  f1: 0.981
+1911M6001:
+  acc: 0.936
+  auc: 0.699
+  confusion matrix:
+  - - 0
+    - 5
+  - - 1
+    - 88
+  f1: 0.916
+1911M6002:
+  acc: 0.944
+  auc: 0.725
+  confusion matrix:
+  - - 0
+    - 3
+  - - 0
+    - 51
+  f1: 0.917
+1911M6003:
+  acc: 0.818
+  auc: 0.746
+  confusion matrix:
+  - - 8
+    - 12
+  - - 8
+    - 82
+  f1: 0.81
+1911M7001:
+  acc: 0.737
+  auc: 0.846
+  confusion matrix:
+  - - 10
+    - 26
+  - - 0
+    - 63
+  f1: 0.686
+1911M7002:
+  acc: 0.943
+  auc: 0.881
+  confusion matrix:
+  - - 4
+    - 6
+  - - 0
+    - 95
+  f1: 0.931
+all:
+  acc: 0.872
+  auc: 0.701
+  f1: 0.829

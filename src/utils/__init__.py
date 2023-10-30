@@ -42,41 +42,97 @@ def get_files(version='1911'):
         testfiles.extend(testfiles1712)
         testfiles.extend(testfiles1902)
         testfiles.extend(testfiles1911)
-        testfiles.extend(testfiles2010)
-        testfiles.extend(testfiles2012)
+        # testfiles.extend(testfiles2010)
+        # testfiles.extend(testfiles2012)
         testfiles = sorted(testfiles)
     return testfiles
 
 
-def profiling(id, mode):
+def profiling(id, profile):
     age = int(id[5])
     gender = id[4]
 
-    if mode == 0:
+    if profile == 0:
         res = 0
-    elif mode == 1:
+    elif profile == 1:
         # 性別
         if gender == 'F':
             res = 0
         else:
             res = 1
-    elif mode == 2:
-        # 年齢 40 <=, 40 >
+    elif profile == 2:
+        # 年齢(2クラス)
+        # 40 <=, 40 >
         if age <= 4:
             res = 0
         else:
             res = 1
-    elif mode == 3:
-        # 年齢 30 <=, 50 <=, 50 > 
+    elif profile == 3:
+        # 年齢(3クラス) 
+        # 30 <=, 50 <=, 50 > 
         if age <= 3:
             res = 0 
         elif age <= 5:
             res = 1
         else:
             res = 2
-    elif mode == 4: 
-        # 年齢 20, 30, 40, 50, 60, 70
+    elif profile == 4: 
+        # 年齢(6クラス) 
+        # 20, 30, 40, 50, 60, 70
         res = age - 2
+    elif profile == 5:
+        if gender == 'F':
+            if age <= 4:
+                res = 0 
+            else:
+                res = 1
+        else:
+            if age <= 4:
+                res = 2
+            else:
+                res = 3
+    elif profile == 6:
+        if gender == 'F':
+            if age <= 3:
+                res = 0 
+            elif age <= 5:
+                res = 1
+            else:
+                res = 2
+        else:
+            if age <= 3:
+                res = 3
+            elif age <= 5:
+                res = 4
+            else:
+                res = 5
+    elif profile == 7:
+        if gender == 'F':
+            if age == 2:
+                res = 0 
+            elif age == 3:
+                res = 1
+            elif age == 4:
+                res = 2
+            elif age == 5:
+                res = 3
+            elif age == 6:
+                res = 4
+            else:
+                res = 5
+        else:
+            if age == 2:
+                res = 6
+            elif age == 3:
+                res = 7
+            elif age == 4:
+                res = 8
+            elif age == 5:
+                res = 9
+            elif age == 6:
+                res = 10
+            else:
+                res = 11
     return res
 
 def clusteringv1(data, testfile, n_clusters=4):
@@ -147,7 +203,7 @@ def Normalization(x):
         res[id] = norm_X
     return res
 
-def torch_fix_seed(seed=123):
+def fix_seed(seed=123):
     # Python random
     random.seed(seed)
     # Numpy
