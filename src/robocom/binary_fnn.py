@@ -112,7 +112,10 @@ if __name__ == '__main__':
             '''
             3. モデルの学習
             '''
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) 
+            if args.balanced:
+                criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) 
+            else:
+                criterion = nn.BCEWithLogitsLoss() 
             optimizer = optimizers.Adam(model.parameters(), lr=0.0001)
 
             def train_step(x, y):
@@ -175,6 +178,7 @@ if __name__ == '__main__':
 
             results.append(auc_score)
             print("auc score : ", auc_score)
+            # preds = (preds > 0.000).astype(int)
             preds = (preds >= 0.5).astype(int)
             print("confusion matrix : \n", confusion_matrix(y_test, preds))
         
