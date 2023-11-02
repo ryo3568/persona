@@ -33,8 +33,8 @@ def load_data(train, profile_vid):
         if i in train:
             X_train.extend(data)
             Y_train.extend(label)
-            X_test = data
-            Y_test = label
+            # X_test = data
+            # Y_test = label
         else:
             X_test = data 
             Y_test = label
@@ -81,10 +81,10 @@ if __name__ == '__main__':
         profile_num = 12
 
     Results = []
-
     kf = KFold(n_splits=3, shuffle=True, random_state=1)
 
     for profile_n in range(profile_num):
+        print("="* 30)
         print(f"profile number : {profile_n}")
         profile_vid = []
         for id in vid:
@@ -93,6 +93,7 @@ if __name__ == '__main__':
                 profile_vid.append(id)
         print(f"profile group member : {len(profile_vid)}")
         results = []
+
 
         for train, test in kf.split(profile_vid):
             '''

@@ -22,7 +22,9 @@ from utils.EarlyStopping import EarlyStopping
 
 def load_data(test_vid, profile_vid):
     path = f'../../data/Hazumi_features/Hazumiall_features_binary.pkl'
-    _, TS, _, _, Text, _, _, _ = pickle.load(open(path, 'rb'), encoding='utaf-8')
+    _, TS, _, _, Text, _, _, _ = pickle.load(open(path, 'rb'), encoding='utaf-8')   
+
+    X_train, X_test, Y_train, Y_test = [], [], [], []
 
     for user in profile_vid:
         label = TS[user]

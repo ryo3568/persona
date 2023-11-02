@@ -27,8 +27,6 @@ def load_data(train, profile_vid):
         if i in train:
             X_train.extend(data)
             Y_train.extend(label)
-            X_test = data
-            Y_test = label
         else:
             X_test = data 
             Y_test = label
