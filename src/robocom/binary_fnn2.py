@@ -22,32 +22,55 @@ from utils.EarlyStopping import EarlyStopping
 
 def load_data(train, profile_vid):
     path = f'../../data/Hazumi_features/Hazumiall_features_binary.pkl'
-    _, TS, _, _, Text, _, _, _ = pickle.load(open(path, 'rb'), encoding='utf-8')
+    _, TS, _, _, _, _, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
     X_train = [] 
     Y_train = []
     X_test = [] 
     Y_test = []
+    X_train_all = []
+    Y_train_all = []
+
+    test_user = []
+    train_n = 0 
+    test_n = 0 
+    train_all_n = 0
 
     for i, user in enumerate(profile_vid):
         label = TS[user]
-        data = Text[user]
+        data = Visual[user]
         if i in train:
             X_train.extend(data)
             Y_train.extend(label)
-            # X_test = data
-            # Y_test = label
+            train_n += 1
         else:
             X_test.extend(data)
             Y_test.extend(label)
+            test_user.append(user)
+            test_n += 1
+
+    for user in vid:
+        label = TS[user]
+        data = Visual[user]
+        if user not in test_user:
+            X_train_all.extend(data)
+            Y_train_all.extend(label)
+            train_all_n += 1
+        
     
     X_train = np.array(X_train)
     Y_train = np.array(Y_train)
     X_test = np.array(X_test)
     Y_test = np.array(Y_test)
+    X_train_all = np.array(X_train_all)
+    Y_train_all = np.array(Y_train_all)
 
-    return X_train, Y_train, X_test, Y_test
-    
+    print(train_n)
+    print(test_n)
+    print(train_all_n)
+
+    return X_train, Y_train, X_test, Y_test, X_train_all, Y_train_all
+
 
 if __name__ == '__main__':
     '''
@@ -58,6 +81,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', type=int, default=0) # 0: ベースライン, 1: 性別, 2: 年齢(2クラス), 3: 年齢(3クラス), 4: 年齢(6クラス) 5: 性別 & 年齢(2クラス), 6: 性別 & 年齢(3クラス), 7: 性別 & 年齢(6クラス)
     parser.add_argument('--balanced', action="store_true", default=False, help="class_weight is balanced")
+    parser.add_argument('--all', action="store_true", default=False, help="use all train data")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -108,7 +132,10 @@ if __name__ == '__main__':
             '''
             1. データの準備
             '''
-            x_train, y_train, x_test, y_test = load_data(train, profile_vid)
+            if args.all:
+                _, _, x_test, y_test, x_train, y_train = load_data(train, profile_vid)
+            else:
+                x_train, y_train, x_test, y_test, _, _ = load_data(train, profile_vid)
             num_positive = np.sum(y_train)
             num_negative = y_train.size - num_positive
             pos_weight = torch.tensor(num_negative / num_positive)
@@ -117,7 +144,7 @@ if __name__ == '__main__':
             '''
             2. モデルの構築
             '''
-            model = FNNUniModel(768).to(device)
+            model = FNNUniModel(66).to(device)
 
             '''
             3. モデルの学習
@@ -206,15 +233,15 @@ if __name__ == '__main__':
         F1_maj.append(round(sum(f1_majs) / len(f1_majs), 3))
 
     print('========== Results ==========')
-    print(Results)
+    # print(Results)
     print(Acc)
-    print(F1)
+    # print(F1)
     Results_clean = []
     for result in Results:
         if not math.isnan(result):
             Results_clean.append(result)
-    print(round(sum(Results_clean) / len(Results_clean), 3))
-    print(round(sum(Acc) / len(Acc), 3))
-    print(round(sum(F1) / len(F1), 3))
-    print(round(sum(Acc_maj) / len(Acc_maj), 3))
-    print(round(sum(F1_maj) / len(F1_maj), 3))
+    # print("AUC: ", round(sum(Results_clean) / len(Results_clean), 3))
+    print("Acc: ", round(sum(Acc) / len(Acc), 3))
+    # print("F1: ", round(sum(F1) / len(F1), 3))
+    # print(round(sum(Acc_maj) / len(Acc_maj), 3))
+    # print(round(sum(F1_maj) / len(F1_maj), 3))
