@@ -22,6 +22,8 @@ def profiling(profile, id):
     age = int(id[5])
     gender = id[4]
 
+    age_th = 4
+
     if profile == 0:
         res = 0
     elif profile == 1:
@@ -33,18 +35,18 @@ def profiling(profile, id):
     elif profile == 2:
         # 年齢(2クラス)
         # 40 <=, 40 >
-        if age <= 4:
+        if age <= age_th:
             res = 0
         else:
             res = 1
     elif profile == 3:
         if gender == 'F':
-            if age <= 4:
+            if age <= age_th:
                 res = 0 
             else:
                 res = 1
         else:
-            if age <= 4:
+            if age <= age_th:
                 res = 2
             else:
                 res = 3
