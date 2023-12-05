@@ -17,7 +17,7 @@ import torch.optim as optimizers
 import sys 
 sys.path.append("../")
 from utils import profiling, fix_seed
-from model import FNNUniModel
+from backup.model import FNNUniModel
 from utils.EarlyStopping import EarlyStopping
 
 def load_data(test_vid, profile_vid):

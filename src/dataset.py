@@ -1,217 +1,265 @@
-import torch 
-from torch.utils.data import Dataset 
-from torch.nn.utils.rnn import pad_sequence 
 import pickle 
-import pandas as pd 
-import utils
-from utils.Standardizing import Standardizing
+import numpy as np
+from sklearn import preprocessing
+import torch 
 
-class HazumiDataset(torch.utils.data.Dataset):
-    def __init__(self, test_file="", train=True):
-        super().__init__()
-
-        path = f'../data/Hazumi_features/Hazumi1911_features.pkl'
-
-        self.SS, self.TS, self.SP, self.TP, \
-        self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
-
-        self.text_list = [] 
-        self.ss_list = []
-        self.ts_list = []
-
-        if train:
-            for x in self.vid:
-                if x != test_file:
-                    self.text_list.extend(self.text[x]) 
-                    self.ss_list.extend(self.SS[x])
-                    self.ts_list.extend(self.TS[x])
-
-        else:
-            self.text_list.extend(self.text[test_file])
-            self.ss_list.extend(self.SS[test_file])
-            self.ts_list.extend(self.TS[test_file])
-        
-
-    def __len__(self):
-        return len(self.text_list)
-        
-    def __getitem__(self, index):
-        return torch.FloatTensor(self.text_list[index]), \
-            self.ss_list[index], \
-            self.ts_list[index], \
-
-class HazumiDatasetforRNN(Dataset):
-    def __init__(self, version, test_file, train=True, scaler=None):
-    
+class HazumiDataset_torch(torch.utils.data.Dataset):
+    def __init__(self, version, ids, sscaler=None, modal='t', ss=False):
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
-        self.SS, self.TS, self.SP, self.TP, \
-        self.text, self.audio, self.visual, self.rawtext, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
-
-        self.keys = [] 
-
-        if train:
-            for x in self.vid:
-                if x != test_file:
-                    self.keys.append(x) 
-            self.scaler_audio = Standardizing()
-            self.scaler_visual = Standardizing()
-            self.scaler_audio.fit(self.audio, self.keys)
-            self.scaler_visual.fit(self.visual, self.keys)
-            self.scaler = (self.scaler_audio, self.scaler_visual)
+        if modal == 't':
+            data = Text 
+        elif modal == 'a':
+            data = Audio
+        elif modal == 'v':
+            data = Visual
+        
+        if ss:
+            label = SS_ternary
         else:
-            self.keys.append(test_file)
-            self.scaler_audio, self.scaler_visual = scaler 
+            label = TS_ternary
 
-        self.len = len(self.keys) 
+        X, y = [], []
+        for id in ids:
+            X.extend(data[id])
+            y.extend(label[id])
 
-        self.TP = utils.Normalization(self.TP)
-
+        if modal != 't':
+            if sscaler is None:
+                self.sscaler = preprocessing.StandardScaler()
+                X = self.sscaler.fit_transform(X)
+            else:
+                self.sscaler = sscaler
+                X = self.sscaler.transform(X)
+        else:
+            self.sscaler = sscaler
         
-    def __getitem__(self, index):
-        vid = self.keys[index] 
-        return torch.FloatTensor(self.text[vid]),\
-            torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-            torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-            torch.FloatTensor(self.TP[vid]),\
-            torch.LongTensor(self.SS[vid]),\
-            torch.LongTensor(self.TS[vid]),\
-            vid
-
+        self.X = X
+        self.y = y
 
     def __len__(self):
-        return self.len 
-
-    def collate_fn(self, data):
-        dat = pd.DataFrame(data)
-
-        return [pad_sequence(dat[i], True) if i<6 else dat[i].tolist() for i in dat]
-
-
-# class HazumiDataset(Dataset):
-
-#     def __init__(self, test_file, train=True, scaler=None):
+        return len(self.X)
     
-#         path = '../data/Hazumi_features/Hazumi1911_features_self.pkl'
+    def get_sscaler(self):
+        return self.sscaler
+    
+    def __getitem__(self, idx):
+        features_x = torch.FloatTensor(self.X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        return features_x, labels
 
-#         self.SS, self.SS_ternary, self.SP, self.SP_binary, self.SP_cluster, \
-#         self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+class HazumiTestDataset_torch(torch.utils.data.Dataset):
+    def __init__(self, version, id, sscaler=None, modal='t', ss=False):
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
-#         self.keys = [] 
+        if modal == 't':
+            data = Text 
+        elif modal == 'a':
+            data = Audio
+        elif modal == 'v':
+            data = Visual
 
-#         if train:
-#             for x in self.vid:
-#                 if x != test_file:
-#                     self.keys.append(x) 
-#             self.scaler_audio = Standardizing()
-#             self.scaler_visual = Standardizing()
-#             self.scaler_audio.fit(self.audio, self.keys)
-#             self.scaler_visual.fit(self.visual, self.keys)
-#             self.scaler = (self.scaler_audio, self.scaler_visual)
-#         else:
-#             self.keys.append(test_file)
-#             self.scaler_audio, self.scaler_visual = scaler 
+        if ss:
+            label = SS_ternary
+        else:
+            label = TS_ternary
 
-#         self.len = len(self.keys) 
+        X, y = [], []
+        X.extend(data[id])
+        y.extend(label[id])
 
+        if modal != 't':
+            X = sscaler.transform(X)
         
-#     def __getitem__(self, index):
-#         vid = self.keys[index] 
-#         return torch.FloatTensor(self.text[vid]),\
-#             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-#             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-#             torch.LongTensor([self.SP_cluster[vid]]),\
-#             torch.LongTensor(self.SS_ternary[vid]),\
-#             vid
-
-#     def __len__(self):
-#         return self.len 
-
-#     def collate_fn(self, data):
-#         dat = pd.DataFrame(data)
-
-#         return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
-
-
-class HazumiDataset_sweep(torch.utils.data.Dataset):
-    def __init__(self):
-        super().__init__()
-
-        path = f'../data/Hazumi_features/Hazumi1911_features.pkl'
-
-        self.SS, self.TS, self.SP, self.TP, \
-        self.text, self.audio, self.visual, self.vid = pickle.load(open(path, 'rb'), encoding='utf-8')
-
-        self.text_list = [] 
-        self.ss_list = []
-        self.ts_list = []
-
-        for id in self.vid:
-            self.text_list.extend(self.text[id]) 
-            self.ss_list.extend(self.SS[id])
-            self.ts_list.extend(self.TS[id])
+        self.X = X
+        self.y = y
 
     def __len__(self):
-        return len(self.text_list)
-        
-    def __getitem__(self, index):
-        return torch.FloatTensor(self.text_list[index]), \
-            self.ss_list[index], \
-            self.ts_list[index], \
-
-# class HazumiDataset_sweep(Dataset):
-#     """マルチタスク学習用データセット
- 
-#     Sweep用のデータセット
-
-#     """
-
-#     def __init__(self):
+        return len(self.X)
     
-#         path = '../data/Hazumi_features/Hazumi1911_features.pkl'
+    def __getitem__(self, idx):
+        features_x = torch.FloatTensor(self.X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        return features_x, labels
 
-#         self.SS, self.TS, self.SP, self.TP, self.text, self.audio, self.visual, self.vid \
-#             = pickle.load(open(path, 'rb'), encoding='utf-8')
+class HazumiDataset_multi(torch.utils.data.Dataset):
+    def __init__(self, version, ids, a_scaler=None, v_scaler=None, ss=False):
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
-#         self.text_list = [] 
-#         self.ss_list = [] 
-#         self.ts_list = []
+        # self.a_scaler = a_scaler
+        # self.v_scaler = v_scaler
 
-#         for x in self.vid:
-#             self.keys.append(x) 
-#         self.scaler_audio = Standardizing()
-#         self.scaler_visual = Standardizing()
-#         self.scaler_audio.fit(self.audio, self.keys)
-#         self.scaler_visual.fit(self.visual, self.keys)
-#         self.scaler = (self.scaler_audio, self.scaler_visual)
+        if ss:
+            label = SS_ternary
+        else:
+            label = TS_ternary
 
-#         self.len = len(self.keys) 
+        t_X, a_X, v_X, y = [], [], [], []
+        for id in ids:
+            t_X.extend(Text[id])
+            a_X.extend(Audio[id])
+            v_X.extend(Visual[id])
+            y.extend(label[id])
 
+        if a_scaler is None:
+            self.a_scaler = preprocessing.StandardScaler()
+            self.v_scaler = preprocessing.StandardScaler()
+            a_X = self.a_scaler.fit_transform(a_X)
+            v_X = self.v_scaler.fit_transform(v_X)
+        else:
+            self.a_scaler = a_scaler
+            self.v_scaler = v_scaler
+            a_X = self.a_scaler.fit_transform(a_X)
+            v_X = self.v_scaler.fit_transform(v_X)
         
-#     def __getitem__(self, index):
-#         vid = self.keys[index] 
+        self.t_X = t_X
+        self.a_X = a_X
+        self.v_X = v_X
+        self.y = y
 
-#         return torch.FloatTensor(self.text[vid]),\
-#             torch.FloatTensor(self.scaler_visual.transform(self.visual[vid])),\
-#             torch.FloatTensor(self.scaler_audio.transform(self.audio[vid])),\
-#             torch.FloatTensor(self.TP_binary[vid]),\
-#             torch.LongTensor(self.TS_ternary[vid]),\
-#             vid
+    def __len__(self):
+        return len(self.t_X)
+    
+    def get_sscaler(self):
+        return self.a_scaler, self.v_scaler
+    
+    def __getitem__(self, idx):
+        t_x = torch.FloatTensor(self.t_X[idx])
+        a_x = torch.FloatTensor(self.a_X[idx])
+        v_x = torch.FloatTensor(self.v_X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        return t_x, a_x, v_x, labels
 
-#     def __len__(self):
-#         return self.len 
+class HazumiTestDataset_multi(torch.utils.data.Dataset):
+    def __init__(self, version, id, a_scaler=None, v_scaler=None, ss=False):
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
-#     def collate_fn(self, data):
-#         dat = pd.DataFrame(data)
-#         return [pad_sequence(dat[i], True) if i<5 else dat[i].tolist() for i in dat]
+        if ss:
+            label = SS_ternary
+        else:
+            label = TS_ternary
 
+        t_X, a_X, v_X, y = [], [], [], []
+        t_X.extend(Text[id])
+        a_X.extend(Audio[id])
+        v_X.extend(Visual[id])
+        y.extend(label[id])
 
+        a_X = a_scaler.transform(a_X)
+        v_X = v_scaler.transform(v_X)
+        
+        self.t_X = t_X
+        self.a_X = a_X
+        self.v_X = v_X
+        self.y = y
 
+    def __len__(self):
+        return len(self.t_X)
+    
+    def __getitem__(self, idx):
+        t_x = torch.FloatTensor(self.t_X[idx])
+        a_x = torch.FloatTensor(self.a_X[idx])
+        v_x = torch.FloatTensor(self.v_X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        return t_x, a_x, v_x, labels
 
+class HazumiDataset_multiv2(torch.utils.data.Dataset):
+    def __init__(self, version, ids, a_scaler=None, v_scaler=None, ss=False):
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
+        # self.a_scaler = a_scaler
+        # self.v_scaler = v_scaler
 
+        if ss:
+            label = SS_ternary
+        else:
+            label = TS_ternary
 
+        t_X, a_X, v_X, y = [], [], [], []
+        IDs = []
+        for id in ids:
+            t_X.extend(Text[id])
+            a_X.extend(Audio[id])
+            v_X.extend(Visual[id])
+            y.extend(label[id])
+            IDs.extend([id] * len(label[id]))
+        
+        if a_scaler is None:
+            self.a_scaler = preprocessing.StandardScaler()
+            self.v_scaler = preprocessing.StandardScaler()
+            a_X = self.a_scaler.fit_transform(a_X)
+            v_X = self.v_scaler.fit_transform(v_X)
+        else:
+            self.a_scaler = a_scaler
+            self.v_scaler = v_scaler
+            a_X = self.a_scaler.fit_transform(a_X)
+            v_X = self.v_scaler.fit_transform(v_X)
+        
+        self.t_X = t_X
+        self.a_X = a_X
+        self.v_X = v_X
+        self.y = y
+        self.IDs = IDs
 
+    def __len__(self):
+        return len(self.t_X)
+    
+    def get_sscaler(self):
+        return self.a_scaler, self.v_scaler
+    
+    def __getitem__(self, idx):
+        t_x = torch.FloatTensor(self.t_X[idx])
+        a_x = torch.FloatTensor(self.a_X[idx])
+        v_x = torch.FloatTensor(self.v_X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        id = self.IDs[idx]
+        return t_x, a_x, v_x, labels, id
 
+class HazumiTestDataset_multiv2(torch.utils.data.Dataset):
+    def __init__(self, version, id, a_scaler=None, v_scaler=None, ss=False):
+        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+            pickle.load(open(path, 'rb'), encoding='utf-8')
 
+        if ss:
+            label = SS_ternary
+        else:
+            label = TS_ternary
 
+        t_X, a_X, v_X, y = [], [], [], []
+        IDs = []
+        t_X.extend(Text[id])
+        a_X.extend(Audio[id])
+        v_X.extend(Visual[id])
+        y.extend(label[id])
+        IDs.extend([id]*len(label[id]))
+
+        a_X = a_scaler.transform(a_X)
+        v_X = v_scaler.transform(v_X)
+        
+        self.t_X = t_X
+        self.a_X = a_X
+        self.v_X = v_X
+        self.y = y
+        self.IDs = IDs
+
+    def __len__(self):
+        return len(self.t_X)
+    
+    def __getitem__(self, idx):
+        t_x = torch.FloatTensor(self.t_X[idx])
+        a_x = torch.FloatTensor(self.a_X[idx])
+        v_x = torch.FloatTensor(self.v_X[idx])
+        labels = torch.LongTensor([self.y[idx]])
+        id = self.IDs[idx]
+        return t_x, a_x, v_x, labels, id
