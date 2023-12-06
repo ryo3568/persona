@@ -2,9 +2,13 @@ import pickle
 import argparse
 import yaml
 import datetime
+import numpy as np
+import pandas as pd 
 import matplotlib.pyplot as plt 
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 import torch 
 import torch.nn as nn 
 import torch.optim as optim 
@@ -169,21 +173,29 @@ def save_results():
 
 def get_ids(pgroup):
     path = f'../data/Hazumi_features/Hazumi{train_version}_features.pkl'
-    _, _, _, _, _, _, _, _, _, _, _, _train_id = pickle.load(open(path, 'rb'), encoding='utf-8')
+    _, _, _, _, _, _, _, TP, _, _, _, _train_id = pickle.load(open(path, 'rb'), encoding='utf-8')
+
+    columns = ['E', 'A', 'C', 'N', 'O']
+    train_df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
+    _df = (train_df - train_df.mean() ) / train_df.std(ddof=0)
 
     train_id = []
     for id in _train_id:
-        if profiling(args.pmode, id) == pgroup:
+        if profiling(args.pmode, id, _df.loc[id].values) == pgroup:
             train_id.append(id)
 
     train_id, valid_id = train_test_split(train_id)
 
     path = f'../data/Hazumi_features/Hazumi{test_version}_features.pkl'
-    _, _, _, _, _, _, _, _, _, _, _, _test_id = pickle.load(open(path, 'rb'), encoding='utf-8')
+    _, _, _, _, _, _, _, TP, _, _, _, _test_id = pickle.load(open(path, 'rb'), encoding='utf-8')
+
+    columns = ['E', 'A', 'C', 'N', 'O']
+    test_df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
+    _df = (test_df - train_df.mean() ) / train_df.std(ddof=0)
 
     test_id = [] 
     for id in _test_id:
-        if profiling(args.pmode, id) == pgroup:
+        if profiling(args.pmode, id, _df.loc[id].values) == pgroup:
             test_id.append(id)
     
     return train_id, valid_id, test_id
@@ -248,11 +260,11 @@ if __name__ == '__main__':
     elif args.modal == 'v':
         input_dim = 66
 
-    train_version = "1911"
-    test_version = "1902"
+    train_version = "2012"
+    test_version = "2010"
 
-    pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4}
-    # pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4, 4:2, 5:2, 6:2, 7:2, 8:2}
+    # pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4}
+    pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4, 4:2, 5:2, 6:2, 7:2, 8:2}
 
     results = {}
 

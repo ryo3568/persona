@@ -18,11 +18,11 @@ def fix_seed(seed=123):
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms = True
 
-def profiling(profile, id):
+def profiling(profile, id, TP):
     age = int(id[5])
     gender = id[4]
 
-    age_th = 4
+    age_th = 3
 
     if profile == 0:
         res = 0
@@ -50,6 +50,16 @@ def profiling(profile, id):
                 res = 2
             else:
                 res = 3
+    elif profile == 4:
+        res = 1 if TP[0] >= 0 else 0
+    elif profile == 5:
+        res = 1 if TP[1] >= 0 else 0
+    elif profile == 6:
+        res = 1 if TP[2] >= 0 else 0
+    elif profile == 7:
+        res = 1 if TP[3] >= 0 else 0
+    elif profile == 8:
+        res = 1 if TP[4] >= 0 else 0
     return res
 
 def get_files(version='1911'):
