@@ -1,3 +1,4 @@
+import os
 import pickle
 import argparse
 import yaml
@@ -12,6 +13,9 @@ from sklearn.cluster import KMeans
 import torch 
 import torch.nn as nn 
 import torch.optim as optim 
+
+import warnings
+warnings.filterwarnings('ignore')
 
 from dataset import HazumiDataset_torch, HazumiTestDataset_torch
 from model import UnimodalFNN
@@ -38,7 +42,10 @@ def train_fn(model, train_loader, criterion, optimizer):
         # 推論
         output = model(x)
         # lossの計算
-        loss = criterion(output, y)
+        if args.binary:
+            loss = criterion(output.view(-1), y.float())
+        else:
+            loss = criterion(output, y)
         # 誤差逆伝播
         loss.backward()
         # パラメータ更新
@@ -67,19 +74,29 @@ def valid_fn(model, test_loader, criterion):
             num_valid += len(y)
             x, y = x.to(device), y.view(-1).to(device) 
             output = model(x)
-            loss = criterion(output, y)
+            # loss = criterion(output, y)
+            if args.binary:
+                loss = criterion(output.view(-1), y.float())
+            else:
+                loss = criterion(output, y)
             valid_loss += loss.item()
             # outputの蓄積
-            _output = torch.argmax(output, dim=1)
+            if args.binary:
+                _output = (output >= 0.5).int()
+            else:
+                _output = torch.argmax(output, dim=1)
             outputs.extend(_output.tolist())
             # labelの蓄積
             labels.extend(y.tolist())
 
         valid_loss = valid_loss / num_valid
 
-        acc = accuracy_score(labels, outputs)
+        if args.regression:
+            res = valid_loss
+        else:
+            res = accuracy_score(labels, outputs)
 
-    return valid_loss, acc
+    return valid_loss, res
 
 
 def run(model, train_loader, valid_loader, criterion, optimizer):
@@ -89,10 +106,9 @@ def run(model, train_loader, valid_loader, criterion, optimizer):
 
     es = EarlyStopping(patience=10)
 
-    # for epoch in range(num_epochs):
-    epoch = 1
-    while True:
-
+    # epoch = 1
+    # while True:
+    for epoch in range(num_epochs):
         _train_loss = train_fn(model, train_loader, criterion, optimizer)
         _valid_loss, _valid_acc = valid_fn(model, valid_loader, criterion)
 
@@ -124,33 +140,45 @@ def show_plot(train_list, test_list, xlabel="epoch", ylabel="loss", title="train
     plt.show()
 
 
-def evaluation(model, sscaler, test_id):
-    for id in test_id:
-        test_dataset = HazumiTestDataset_torch(version=test_version, id=id, sscaler=sscaler, modal=args.modal, ss=args.ss)
-        test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=test_batch_size, shuffle=False)
+def evaluation(model, sscaler, id, criterion):
+    test_dataset = HazumiTestDataset_torch(version=hazumi_version, id=id, sscaler=sscaler, modal=args.modal, ss=args.ss, binary=args.binary, regression=args.regression)
+    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=test_batch_size, shuffle=False)
 
-        # 評価用のコード
-        num_test = 0 
-        outputs = []
-        labels = []
+    # 評価用のコード
+    num_test = 0 
+    outputs = []
+    labels = []
 
-        # model　評価モードに設定
-        model.eval() 
+    loss = 0
 
-        # 評価の際に勾配を計算しないようにする
-        with torch.no_grad():
-            for x, y in test_loader:
-                num_test += len(y)
-                x, y = x.to(device), y.view(-1).to(device) 
-                output = model(x)
-                # outputの蓄積
+    # model　評価モードに設定
+    model.eval() 
+
+    # 評価の際に勾配を計算しないようにする
+    with torch.no_grad():
+        for x, y in test_loader:
+            num_test += len(y)
+            x, y = x.to(device), y.view(-1).to(device) 
+            output = model(x)
+            # outputの蓄積
+            if args.binary:
+                _output = (output >= 0.5).int()
+                outputs.extend(_output.tolist())
+            elif args.regression:
+                loss += criterion(output, y)
+            else:
                 _output = torch.argmax(output, dim=1)
                 outputs.extend(_output.tolist())
-                # labelの蓄積
-                labels.extend(y.tolist())
-
+            # _output = torch.argmax(output, dim=1)
+            # outputs.extend(_output.tolist())
+            # labelの蓄積
+            labels.extend(y.tolist())
+        if args.regression:
+            loss /= num_test
+            results[id] = float(loss)
+        else:
             acc = accuracy_score(labels, outputs)
-        results[id] = float(round(acc, 3))
+            results[id] = float(round(acc, 3))
 
 def save_results():
     # 実験結果のファイル出力
@@ -160,6 +188,7 @@ def save_results():
     config["label"] = "binary" if args.binary else "ternary"
     config["modal"] = args.modal
     config["pmode"] = args.pmode
+    config["task"] = "regresion" if args.regression else "classification"
     
     yml = {}
     yml["config"] = config 
@@ -167,91 +196,103 @@ def save_results():
 
     timestamp = datetime.datetime.now().strftime('%m%d%H%M%S')
 
-    if args.results_save:
-        with open(f"results/{timestamp}.yaml", 'w') as f:
+    if args.save_results:
+        file_name = f'results/seed_{args.seed}/{timestamp}.yaml'
+        with open(file_name, 'w') as f:
             yaml.dump(yml, f)
 
-def get_ids(pgroup):
-    path = f'../data/Hazumi_features/Hazumi{train_version}_features.pkl'
-    _, _, _, _, _, _, _, TP, _, _, _, _train_id = pickle.load(open(path, 'rb'), encoding='utf-8')
+def get_ids(test_id):
+    path = f'../data/Hazumi_features/Hazumi{hazumi_version}_features.pkl'
+    _, _, _, _, _, _, _, TP, _, _, _, ids = pickle.load(open(path, 'rb'), encoding='utf-8')
 
     columns = ['E', 'A', 'C', 'N', 'O']
-    train_df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
-    _df = (train_df - train_df.mean() ) / train_df.std(ddof=0)
+    _df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
+    df = (_df - _df.mean() ) / _df.std(ddof=0)
+
+    test_profile = profiling(args.pmode, test_id, _df)
 
     train_id = []
-    for id in _train_id:
-        if profiling(args.pmode, id, _df.loc[id].values) == pgroup:
+    for id in ids:
+        if profiling(args.pmode, id, df) == test_profile:
             train_id.append(id)
 
     train_id, valid_id = train_test_split(train_id)
 
-    path = f'../data/Hazumi_features/Hazumi{test_version}_features.pkl'
-    _, _, _, _, _, _, _, TP, _, _, _, _test_id = pickle.load(open(path, 'rb'), encoding='utf-8')
-
-    columns = ['E', 'A', 'C', 'N', 'O']
-    test_df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
-    _df = (test_df - train_df.mean() ) / train_df.std(ddof=0)
-
-    test_id = [] 
-    for id in _test_id:
-        if profiling(args.pmode, id, _df.loc[id].values) == pgroup:
-            test_id.append(id)
-    
-    return train_id, valid_id, test_id
+    return train_id, valid_id
 
     
-def main(pgroup=0):
-    train_id, valid_id, test_id = get_ids(pgroup)
-    train_dataset = HazumiDataset_torch(version=train_version, ids=train_id, modal=args.modal, ss=args.ss)
-    sscaler = train_dataset.get_sscaler()
-    valid_dataset = HazumiDataset_torch(version=train_version, ids=valid_id, sscaler=sscaler, modal=args.modal, ss=args.ss)
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False)
+def main():
+    path = f'../data/Hazumi_features/Hazumi{hazumi_version}_features.pkl'
+    _, _, _, _, _, _, _, _, _, _, _, ids = pickle.load(open(path, 'rb'), encoding='utf-8')
+    for test_id in ids:
+        train_id, valid_id = get_ids(test_id)
+        train_dataset = HazumiDataset_torch(version=hazumi_version, ids=train_id, modal=args.modal, ss=args.ss, binary=args.binary, regression=args.regression)
+        sscaler = train_dataset.get_sscaler()
+        valid_dataset = HazumiDataset_torch(version=hazumi_version, ids=valid_id, sscaler=sscaler, modal=args.modal, ss=args.ss, binary=args.binary, regression=args.regression)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False)
 
-    model = UnimodalFNN(input_dim=input_dim, num_classes=num_classes).to(device)
+        model = UnimodalFNN(input_dim=input_dim, output_dim=output_dim).to(device)
 
-    criterion = nn.CrossEntropyLoss() 
-    optimizer = optim.SGD(model.parameters(), lr=lr)
-
-    train_loss_list, valid_loss_list = run(model, train_loader, valid_loader, criterion, optimizer)
-
-    results = evaluation(model, sscaler, test_id)
-
-    if args.results_plot:
-        show_plot(train_loss_list, valid_loss_list)
-
-    timestamp = datetime.datetime.now().strftime('%m%d%H%M%S')
-    if args.model_save:
-        if args.ss:
-            torch.save(model.state_dict(), f"model/ss-{args.pmode}-{pgroup}-{args.modal}-{timestamp}.pth")
+        if args.binary:
+            criterion = nn.BCEWithLogitsLoss()
+        elif args.regression:
+            criterion = nn.MSELoss()
         else:
-            torch.save(model.state_dict(), f"model/ts-{args.pmode}-{pgroup}-{args.modal}-{timestamp}.pth")
+            criterion = nn.CrossEntropyLoss() 
+
+        optimizer = optim.SGD(model.parameters(), lr=lr)
+        # optimizer = optim.Adam(model.parameters(), lr=lr)
+
+        train_loss_list, valid_loss_list = run(model, train_loader, valid_loader, criterion, optimizer)
+
+        evaluation(model, sscaler, test_id, criterion)
+
+        if args.plot_results:
+            show_plot(train_loss_list, valid_loss_list)
+
+        # timestamp = datetime.datetime.now().strftime('%m%d%H%M%S')
+        # if args.save_model:
+        #     if args.ss:
+        #         torch.save(model.state_dict(), f"model/seed_{args.seed}/ss-{args.pmode}-{pgroup}-{args.modal}-{timestamp}.pth")
+        #     else:
+        #         torch.save(model.state_dict(), f"model/seed_{args.seed}/ts-{args.pmode}-{pgroup}-{args.modal}-{timestamp}.pth")
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--modal', type=str, default="t")
+    parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--pmode', type=int, default=0)
     parser.add_argument('--ss', action='store_true', default=False)
     parser.add_argument('--binary', action='store_true', default=False)
-    parser.add_argument('--model_save', action='store_true', default=False)
-    parser.add_argument('--results_save', action='store_true', default=False)
-    parser.add_argument('--results_plot', action='store_true', default=False)
+    parser.add_argument('--regression', action='store_true', default=False)
+    parser.add_argument('--save_model', action='store_true', default=False)
+    parser.add_argument('--save_results', action='store_true', default=False)
+    parser.add_argument('--plot_results', action='store_true', default=False)
     args = parser.parse_args()
 
     # seedの固定
-    fix_seed()
+    fix_seed(args.seed)
+    
+    # results用のディレクトリ作成
+    if args.save_results:
+        os.makedirs(f"results/seed_{args.seed}", exist_ok=True)
+    if args.save_model:
+        os.makedirs(f"model/seed_{args.seed}", exist_ok=True)
 
     # ハイパラ設定
-    batch_size = 128 
+    batch_size = 128
     test_batch_size = 32
-    # num_epochs = 1000
+    num_epochs = 100
     lr = 0.01
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    num_classes = 3
+    if args.binary or args.regression:
+        output_dim = 1
+    else:
+        output_dim = 3
     
     if args.modal == 't':
         input_dim = 768
@@ -260,15 +301,22 @@ if __name__ == '__main__':
     elif args.modal == 'v':
         input_dim = 66
 
-    train_version = "2012"
-    test_version = "2010"
+    # train_version = "2012"
+    # test_version = "2010"
 
-    # pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4}
-    pgroup_num = {0: 1, 1: 2, 2: 2, 3: 4, 4:2, 5:2, 6:2, 7:2, 8:2}
+    # train_version = "1911"
+    # test_version = "1902"
+
+    hazumi_version = "1911"
+
+    # pgroup_num_dict = {0: 1, 1: 2, 2: 2, 3: 4, 4:2, 5:2, 6:2, 7:2, 8:2}
+    # if args.pmode <= 8:
+    #     pgroup_num = pgroup_num_dict[args.pmode]
+    # else:
+    #     pgroup_num = args.pmode - 7
 
     results = {}
 
-    for pgroup in range(pgroup_num[args.pmode]):
-        main(pgroup)
+    main()
     
     save_results()

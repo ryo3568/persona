@@ -8,9 +8,9 @@ from model import UnimodalFNN
 from utils import profiling
 
 class HazumiDataset_torch(torch.utils.data.Dataset):
-    def __init__(self, version, ids, sscaler=None, modal='t', ss=False):
+    def __init__(self, version, ids, sscaler=None, modal='t', ss=False, binary=False, regression=False):
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
-        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+        SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
             pickle.load(open(path, 'rb'), encoding='utf-8')
 
         if modal == 't':
@@ -21,9 +21,19 @@ class HazumiDataset_torch(torch.utils.data.Dataset):
             data = Visual
         
         if ss:
-            label = SS_ternary
+            if binary:
+                label = SS_binary
+            elif regression:
+                label = SS
+            else:
+                label = SS_ternary
         else:
-            label = TS_ternary
+            if binary:
+                label = TS_binary
+            elif regression:
+                label = TS
+            else:
+                label = TS_ternary
 
         X, y = [], []
         for id in ids:
@@ -43,6 +53,8 @@ class HazumiDataset_torch(torch.utils.data.Dataset):
         self.X = X
         self.y = y
 
+        self.regression = regression
+
     def __len__(self):
         return len(self.X)
     
@@ -51,13 +63,16 @@ class HazumiDataset_torch(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
         features_x = torch.FloatTensor(self.X[idx])
-        labels = torch.LongTensor([self.y[idx]])
+        if self.regression:
+            labels = torch.FloatTensor([self.y[idx]])
+        else:
+            labels = torch.LongTensor([self.y[idx]])
         return features_x, labels
 
 class HazumiTestDataset_torch(torch.utils.data.Dataset):
-    def __init__(self, version, id, sscaler=None, modal='t', ss=False):
+    def __init__(self, version, id, sscaler=None, modal='t', ss=False, binary=False, regression=False):
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
-        _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+        SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
             pickle.load(open(path, 'rb'), encoding='utf-8')
 
         if modal == 't':
@@ -68,9 +83,20 @@ class HazumiTestDataset_torch(torch.utils.data.Dataset):
             data = Visual
 
         if ss:
-            label = SS_ternary
+            if binary:
+                label = SS_binary
+            elif regression:
+                label = SS
+            else:
+                label = SS_ternary
         else:
-            label = TS_ternary
+            if binary:
+                label = TS_binary
+            elif regression:
+                label = TS
+            else:
+                label = TS_ternary
+
 
         X, y = [], []
         X.extend(data[id])
@@ -82,12 +108,17 @@ class HazumiTestDataset_torch(torch.utils.data.Dataset):
         self.X = X
         self.y = y
 
+        self.regression = regression
+
     def __len__(self):
         return len(self.X)
     
     def __getitem__(self, idx):
         features_x = torch.FloatTensor(self.X[idx])
-        labels = torch.LongTensor([self.y[idx]])
+        if self.regression:
+            labels = torch.FloatTensor([self.y[idx]])
+        else:
+            labels = torch.LongTensor([self.y[idx]])
         return features_x, labels
 
 class HazumiDataset_multi(torch.utils.data.Dataset):
@@ -126,6 +157,7 @@ class HazumiDataset_multi(torch.utils.data.Dataset):
         self.a_X = a_X
         self.v_X = v_X
         self.y = y
+
 
     def __len__(self):
         return len(self.t_X)
