@@ -18,37 +18,100 @@ def fix_seed(seed=123):
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms = True
 
-def profiling(profile, id):
+def profiling(profile, id, TP):
     age = int(id[5])
     gender = id[4]
+
+    per_th = 0
 
     if profile == 0:
         res = 0
     elif profile == 1:
-        # 性別
         if gender == 'F':
             res = 0
         else:
             res = 1
     elif profile == 2:
-        # 年齢(2クラス)
-        # 40 <=, 40 >
         if age <= 4:
-            res = 0
+            res = 0 
         else:
             res = 1
     elif profile == 3:
         if gender == 'F':
             if age <= 4:
-                res = 0 
+                res = 0
             else:
                 res = 1
         else:
             if age <= 4:
-                res = 2
+                res = 2 
             else:
                 res = 3
+    elif profile == 4:
+        res = 1 if TP.loc[id, :][0] >= per_th else 0
+    elif profile == 5:
+        res = 1 if TP.loc[id, :][1] >= per_th else 0
+    elif profile == 6:
+        res = 1 if TP.loc[id, :][2] >= per_th else 0
+    elif profile == 7:
+        res = 1 if TP.loc[id, :][3] >= per_th else 0
+    elif profile == 8:
+        res = 1 if TP.loc[id, :][4] >= per_th else 0
+    elif profile == 9:
+        model = KMeans(n_clusters=2, random_state=0)
+        model.fit(TP.values)
+        res = model.predict([TP.loc[id, :].values])[0]
+    elif profile == 10:
+        model = KMeans(n_clusters=3, random_state=0)
+        model.fit(TP.values)
+        res = model.predict([TP.loc[id, :].values])[0]
     return res
+
+# def profiling(profile, id, TP, model=None):
+#     age = int(id[5])
+#     gender = id[4]
+
+#     age_th = 4
+#     per_th = 0
+
+#     if profile == 0:
+#         res = 0
+#     elif profile == 1:
+#         if gender == 'F':
+#             res = 0
+#         else:
+#             res = 1
+#     elif profile == 2:
+#         if age <= 4:
+#             res = 0 
+#         else:
+#             res = 1
+#     elif profile == 3:
+#         if age <= 3:
+#             res = 0 
+#         elif age <= 5:
+#             res = 1
+#         else:
+#             res = 2
+#     elif profile == 4:
+#         res = age - 2
+#     elif profile == 5:
+#         res = 1 if TP.loc[id, :][0] >= per_th else 0
+#     elif profile == 6:
+#         res = 1 if TP.loc[id, :][1] >= per_th else 0
+#     elif profile == 7:
+#         res = 1 if TP.loc[id, :][2] >= per_th else 0
+#     elif profile == 8:
+#         res = 1 if TP.loc[id, :][3] >= per_th else 0
+#     elif profile == 9:
+#         res = 1 if TP.loc[id, :][4] >= per_th else 0
+#     else:
+#         if model is None:
+#             model = KMeans(n_clusters=profile-7, random_state=0)
+#             model.fit(TP.values)
+#         res = model.predict([TP.loc[id, :].values])[0]
+
+#     return res, model
 
 def get_files(version='1911'):
     testfiles1712 = []
