@@ -1,86 +1,140 @@
 import glob
 import pickle 
 import numpy as np
+import pandas as pd
 from sklearn import preprocessing
+from sklearn.preprocessing import StandardScaler
 import torch 
 
-from model import UnimodalFNN
 from utils import profiling
 
-class HazumiDataset_torch(torch.utils.data.Dataset):
-    def __init__(self, version, ids, sscaler=None, modal='t', ss=False, binary=False, regression=False):
-        path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
-        SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
-            pickle.load(open(path, 'rb'), encoding='utf-8')
+# class HazumiDataset_torch(torch.utils.data.Dataset):
+#     def __init__(self, version, ids, modal='t', ss=False, binary=False, regression=False):
+#         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+#         SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+#             pickle.load(open(path, 'rb'), encoding='utf-8')
 
-        if modal == 't':
-            data = Text 
-        elif modal == 'a':
-            data = Audio
-        elif modal == 'v':
-            data = Visual
-        
-        if ss:
-            if binary:
-                label = SS_binary
-            elif regression:
-                label = SS
-            else:
-                label = SS_ternary
-        else:
-            if binary:
-                label = TS_binary
-            elif regression:
-                label = TS
-            else:
-                label = TS_ternary
+#         if ss:
+#             if binary:
+#                 label = SS_binary
+#             elif regression:
+#                 label = SS
+#             else:
+#                 label = SS_ternary
+#         else:
+#             if binary:
+#                 label = TS_binary
+#             elif regression:
+#                 label = TS
+#             else:
+#                 label = TS_ternary
 
-        X, y = [], []
-        for id in ids:
-            X.extend(data[id])
-            y.extend(label[id])
+#         # X, y = [], []
+#         t_X, a_X, 
+#         for id in ids:
+#             data = []
+#             if 't' in modal:
+#                 text = pd.DataFrame(Text[id])
+#                 data.append(text)
+#             if 'a' in modal:
+#                 # audio = Audio[id]
+#                 # stds = StandardScaler()
+#                 # audio = stds.fit_transform(audio)
+#                 audio = pd.DataFrame(Audio[id])
+#                 data.append(audio)
+#             if 'v' in modal:
+#                 # visual = Visual[id]
+#                 # stds = StandardScaler()
+#                 # visual = stds.fit_transform(visual)
+#                 visual = pd.DataFrame(Visual[id])
+#                 data.append(visual)
+#             data = pd.concat(data, axis=1).values
+#             X.extend(data)
+#             y.extend(label[id])
 
-        if modal != 't':
-            if sscaler is None:
-                self.sscaler = preprocessing.StandardScaler()
-                X = self.sscaler.fit_transform(X)
-            else:
-                self.sscaler = sscaler
-                X = self.sscaler.transform(X)
-        else:
-            self.sscaler = sscaler
-        
-        self.X = X
-        self.y = y
+#         self.X = X
+#         self.y = y
 
-        self.regression = regression
+#         self.regression = regression
 
-    def __len__(self):
-        return len(self.X)
+#     def __len__(self):
+#         return len(self.X)
     
-    def get_sscaler(self):
-        return self.sscaler
+#     def __getitem__(self, idx):
+#         features_x = torch.FloatTensor(self.X[idx])
+#         if self.regression:
+#             labels = torch.FloatTensor([self.y[idx]])
+#         else:
+#             labels = torch.LongTensor([self.y[idx]])
+#         return features_x, labels
+
+# class HazumiDataset_torch(torch.utils.data.Dataset):
+#     def __init__(self, version, ids, sscaler=None, modal='t', ss=False, binary=False, regression=False):
+#         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
+#         SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
+#             pickle.load(open(path, 'rb'), encoding='utf-8')
+
+#         if modal == 't':
+#             data = Text 
+#         elif modal == 'a':
+#             data = Audio
+#         elif modal == 'v':
+#             data = Visual
+        
+#         if ss:
+#             if binary:
+#                 label = SS_binary
+#             elif regression:
+#                 label = SS
+#             else:
+#                 label = SS_ternary
+#         else:
+#             if binary:
+#                 label = TS_binary
+#             elif regression:
+#                 label = TS
+#             else:
+#                 label = TS_ternary
+
+#         X, y = [], []
+#         for id in ids:
+#             X.extend(data[id])
+#             y.extend(label[id])
+
+#         if modal != 't':
+#             if sscaler is None:
+#                 self.sscaler = preprocessing.StandardScaler()
+#                 X = self.sscaler.fit_transform(X)
+#             else:
+#                 self.sscaler = sscaler
+#                 X = self.sscaler.transform(X)
+#         else:
+#             self.sscaler = sscaler
+        
+#         self.X = X
+#         self.y = y
+
+#         self.regression = regression
+
+#     def __len__(self):
+#         return len(self.X)
     
-    def __getitem__(self, idx):
-        features_x = torch.FloatTensor(self.X[idx])
-        if self.regression:
-            labels = torch.FloatTensor([self.y[idx]])
-        else:
-            labels = torch.LongTensor([self.y[idx]])
-        return features_x, labels
+#     def get_sscaler(self):
+#         return self.sscaler
+    
+#     def __getitem__(self, idx):
+#         features_x = torch.FloatTensor(self.X[idx])
+#         if self.regression:
+#             labels = torch.FloatTensor([self.y[idx]])
+#         else:
+#             labels = torch.LongTensor([self.y[idx]])
+#         return features_x, labels
 
 class HazumiTestDataset_torch(torch.utils.data.Dataset):
-    def __init__(self, version, id, sscaler=None, modal='t', ss=False, binary=False, regression=False):
+    def __init__(self, version, id, modal='t', ss=False, binary=False, regression=False):
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
         SS, SS_binary, SS_ternary, TS, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
             pickle.load(open(path, 'rb'), encoding='utf-8')
-
-        if modal == 't':
-            data = Text 
-        elif modal == 'a':
-            data = Audio
-        elif modal == 'v':
-            data = Visual
 
         if ss:
             if binary:
@@ -98,13 +152,26 @@ class HazumiTestDataset_torch(torch.utils.data.Dataset):
                 label = TS_ternary
 
 
-        X, y = [], []
-        X.extend(data[id])
-        y.extend(label[id])
+        data = []
+        if 't' in modal:
+            text = pd.DataFrame(Text[id])
+            data.append(text)
+        if 'a' in modal:
+            audio = Audio[id]
+            stds = StandardScaler()
+            audio = stds.fit_transform(audio)
+            audio = pd.DataFrame(audio)
+            data.append(audio)
+        if 'v' in modal:
+            visual = Visual[id]
+            stds = StandardScaler()
+            visual = stds.fit_transform(visual)
+            visual = pd.DataFrame(visual)
+            data.append(visual)
+        data = pd.concat(data, axis=1).values
+        X = data 
+        y = label[id]
 
-        if modal != 't':
-            X = sscaler.transform(X)
-        
         self.X = X
         self.y = y
 
@@ -121,14 +188,11 @@ class HazumiTestDataset_torch(torch.utils.data.Dataset):
             labels = torch.LongTensor([self.y[idx]])
         return features_x, labels
 
-class HazumiDataset_multi(torch.utils.data.Dataset):
-    def __init__(self, version, ids, a_scaler=None, v_scaler=None, ss=False):
+class HazumiDataset(torch.utils.data.Dataset):
+    def __init__(self, version, ids, ss=False, a_stds=None, v_stds=None, test=False):
         path = f'../data/Hazumi_features/Hazumi{version}_features.pkl'
         _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, _, Text, Audio, Visual, _ =\
             pickle.load(open(path, 'rb'), encoding='utf-8')
-
-        # self.a_scaler = a_scaler
-        # self.v_scaler = v_scaler
 
         if ss:
             label = SS_ternary
@@ -136,23 +200,37 @@ class HazumiDataset_multi(torch.utils.data.Dataset):
             label = TS_ternary
 
         t_X, a_X, v_X, y = [], [], [], []
+        
         for id in ids:
             t_X.extend(Text[id])
-            a_X.extend(Audio[id])
-            v_X.extend(Visual[id])
-            y.extend(label[id])
 
-        if a_scaler is None:
-            self.a_scaler = preprocessing.StandardScaler()
-            self.v_scaler = preprocessing.StandardScaler()
-            a_X = self.a_scaler.fit_transform(a_X)
-            v_X = self.v_scaler.fit_transform(v_X)
-        else:
-            self.a_scaler = a_scaler
-            self.v_scaler = v_scaler
-            a_X = self.a_scaler.fit_transform(a_X)
-            v_X = self.v_scaler.fit_transform(v_X)
+            audio = Audio[id]
+            # stds = StandardScaler()
+            # audio = stds.fit_transform(audio).tolist()
+            a_X.extend(audio)
+
+            visual = Visual[id]
+            # stds = StandardScaler()
+            # visual = stds.fit_transform(visual).tolist()
+            v_X.extend(visual)
+
+            y.extend(label[id])
         
+        if test:
+            a_X = a_stds.fit_transform(a_X).tolist()
+            self.a_stds = a_stds
+
+            v_X = v_stds.fit_transform(v_X).tolist()
+            self.v_stds = v_stds
+        else:
+            a_stds = StandardScaler() 
+            a_X = a_stds.fit_transform(a_X).tolist()
+            self.a_stds = a_stds
+
+            v_stds = StandardScaler()
+            v_X = v_stds.fit_transform(v_X).tolist()
+            self.v_stds = v_stds
+
         self.t_X = t_X
         self.a_X = a_X
         self.v_X = v_X
@@ -161,9 +239,6 @@ class HazumiDataset_multi(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.t_X)
-    
-    def get_sscaler(self):
-        return self.a_scaler, self.v_scaler
     
     def __getitem__(self, idx):
         t_x = torch.FloatTensor(self.t_X[idx])
@@ -184,14 +259,19 @@ class HazumiTestDataset_multi(torch.utils.data.Dataset):
             label = TS_ternary
 
         t_X, a_X, v_X, y = [], [], [], []
-        t_X.extend(Text[id])
-        a_X.extend(Audio[id])
-        v_X.extend(Visual[id])
-        y.extend(label[id])
+        t_X = Text[id]
 
-        a_X = a_scaler.transform(a_X)
-        v_X = v_scaler.transform(v_X)
-        
+        audio = Audio[id]
+        stds = StandardScaler()
+        a_X = stds.fit_transform(audio).tolist()
+        a_X.extend(Audio[id])
+
+        visual = Visual[id]
+        stds = StandardScaler()
+        v_X = stds.fit_transform(visual).tolist()
+
+        y.extend(label[id])
+       
         self.t_X = t_X
         self.a_X = a_X
         self.v_X = v_X

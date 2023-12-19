@@ -16,7 +16,7 @@ from utils import profiling, fix_seed
 
 def load_data(testuser, modal, pmode):
     path = f'../data/Hazumi_features/Hazumi1911_features.pkl'
-    _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, _, TP, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
+    _, SS_binary, SS_ternary, _, TS_binary, TS_ternary, SP, TP, Text, Audio, Visual, vid = pickle.load(open(path, 'rb'), encoding='utf-8')
 
     columns = ['E', 'A', 'C', 'N', 'O']
     df = pd.DataFrame.from_dict(TP, orient='index', columns=columns)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
         else:
             model = svm.SVC(C=100, gamma=0.0001, kernel="sigmoid")
         
-        model = MLPClassifier()
+        # model = MLPClassifier()
         '''
         3. モデルの学習
         '''

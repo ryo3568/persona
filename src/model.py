@@ -3,30 +3,22 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 
-class UnimodalFNN(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(UnimodalFNN, self).__init__() 
-        # self.fc1 = nn.Linear(input_dim, 64)
-        # self.fc2 = nn.Linear(64, 64)
-        # self.fc3 = nn.Linear(64, 32)
-        # self.fc4 = nn.Linear(32, 32)
-        # self.fc5 = nn.Linear(32, num_classes)
+class FNN(nn.Module):
+    def __init__(self, input_dim, output_dim, modal='t'):
+        super(FNN, self).__init__() 
+        
+        if len(modal) == 1:
+            k = 1
+        elif len(modal) == 2:
+            k = 2
+        else:
+            k = 3
 
-        # self.fc1 = nn.Linear(input_dim, int(input_dim / 2))
-        # self.fc2 = nn.Linear(int(input_dim / 2), int(input_dim / 2))
-        # self.fc3 = nn.Linear(int(input_dim / 2), int(input_dim / 4))
-        # self.fc4 = nn.Linear(int(input_dim / 4), 32)
-        # self.fc5 = nn.Linear(16, num_classes)
-
-        self.fc1 = nn.Linear(input_dim, input_dim)
-        self.fc2 = nn.Linear(input_dim, int(input_dim / 2))
-        self.fc3 = nn.Linear(int(input_dim / 2), int(input_dim / 2))
-        self.fc4 = nn.Linear(int(input_dim / 2), 32)
+        self.fc1 = nn.Linear(input_dim, 64 * k)
+        self.fc2 = nn.Linear(64 * k, 64 * k)
+        self.fc3 = nn.Linear(64 * k, 32)
+        self.fc4 = nn.Linear(32, 32)
         self.fc5 = nn.Linear(32, output_dim)
-
-        # self.fc1 = nn.Linear(input_dim, int(input_dim) / 2)
-        # self.fc2 = nn.Linear(int(input_dim / 2), int(input_dim / 4))
-        # self.fc3 = nn.Linear(int(input_dim / 4), output_dim)
 
         self.dropout = nn.Dropout(0.3)
 
@@ -44,40 +36,64 @@ class UnimodalFNN(nn.Module):
     
 
 class LatefusionFNN(nn.Module):
-    def __init__(self, input_dim, num_classes, ss, pmode, pgroup, modal, seed):
+    def __init__(self, output_dim, modal):
         super(LatefusionFNN, self).__init__() 
-        self.t_model = UnimodalFNN(input_dim=768, num_classes=num_classes)
-        t_file = glob.glob(f"model/seed_{seed}/{'ss' if ss else 'ts'}-{pmode}-{pgroup}-t-*")[0]
-        # t_file = glob.glob(f"model/{'ss' if ss else 'ts'}-0-0-t-*")[0]
-        self.t_model.load_state_dict(torch.load(t_file))
-        # self.t_model.fc5 = torch.nn.Identity()
-        for param in self.t_model.parameters():
-            param.requires_grad = False
 
+        self.t_model = nn.Sequential(
+            nn.Linear(768, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, output_dim),
+        )
 
-        self.a_model = UnimodalFNN(input_dim=384, num_classes=num_classes)
-        a_file = glob.glob(f"model/seed_{seed}/{'ss' if ss else 'ts'}-{pmode}-{pgroup}-a-*")[0]
-        # a_file = glob.glob(f"model/{'ss' if ss else 'ts'}-0-0-a-*")[0]
-        self.a_model.load_state_dict(torch.load(a_file))
-        # self.a_model.fc5 = torch.nn.Identity()
-        for param in self.a_model.parameters():
-            param.requires_grad = False
+        self.a_model = nn.Sequential(
+            nn.Linear(384, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, output_dim),
+        )
 
+        self.v_model = nn.Sequential(
+            nn.Linear(66, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, output_dim),
+        )
 
-        self.v_model = UnimodalFNN(input_dim=66, num_classes=num_classes)
-        v_file = glob.glob(f"model/seed_{seed}/{'ss' if ss else 'ts'}-{pmode}-{pgroup}-v-*")[0]
-        # v_file = glob.glob(f"model/{'ss' if ss else 'ts'}-0-0-v-*")[0]
-        self.v_model.load_state_dict(torch.load(v_file))
-        # self.v_model.fc5 = torch.nn.Identity()
-        for param in self.v_model.parameters():
-            param.requires_grad = False
-
-        self.fc = nn.Linear(input_dim, num_classes)
-        self.fc1 = nn.Linear(input_dim, int(input_dim / 2))
-        self.fc2 = nn.Linear(int(input_dim/2), num_classes)
-        self.dropout = nn.Dropout(0.3)
+        k = len(modal)
+        self.fusion_model = nn.Sequential(
+            nn.Linear(output_dim * k, output_dim)
+        )
 
         self.modal = modal
+
     
     def forward(self, t_x, a_x, v_x):
         h = []
@@ -91,10 +107,7 @@ class LatefusionFNN(nn.Module):
             v_y = self.v_model(v_x)
             h.append(v_y)
         h = torch.cat(h, dim=1)
-        y = self.fc(h)
-        # h = F.relu(self.fc1(h))
-        # h =self.dropout(h)
-        # y = self.fc2(h)
+        y = self.fusion_model(h)
 
         return y
 
