@@ -37,10 +37,10 @@ def load_data(testuser, modal, pmode):
             label = TS_ternary
 
     
-    test_profile = profiling(pmode, testuser,  _df)
+    test_profile = profiling(pmode, testuser,  _df, age_th=args.age_th)
 
     for user in vid:
-        user_profile = profiling(pmode, user, _df)
+        user_profile = profiling(pmode, user, _df, age_th=args.age_th)
         data = [] 
         if 't' in modal:
             text = pd.DataFrame(Text[user])
@@ -85,6 +85,8 @@ if __name__ == '__main__':
     parser.add_argument('--binary', action='store_true', default=False)
     parser.add_argument('--save_results', action='store_true', default=False)
     parser.add_argument('--balanced', action="store_true", default=False, help="class_weight is balanced")
+    # 年齢閾値の追加
+    parser.add_argument('--age_th', type=int, default=4)
     args = parser.parse_args()
 
     config = {}
@@ -135,6 +137,8 @@ if __name__ == '__main__':
     config["label"] = "binary" if args.binary else "ternary"
     config["modal"] = args.modal
     config["pmode"] = args.pmode
+    # 年齢閾値の追加
+    config["age_th"] = args.age_th
     # config["task"] = "regresion" if args.regression else "classification"
     
     yml = {}
