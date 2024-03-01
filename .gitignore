@@ -6,4 +6,4 @@ backup/
 data/Hazumi 
 Hazumiall_features.pkl
 model/ 
-results/
+results/**/*.yaml
